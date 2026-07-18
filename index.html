@@ -26,8 +26,33 @@
   .screen { display: none; height: 100%; }
   .screen.active { display: flex; flex-direction: column; }
 
+  /* ===== 소리 켜기/끄기 (모든 화면 우측 상단) ===== */
+  #btn-sound {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    font-size: 22px; font-weight: 700; padding: 0 20px;
+    background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
+  }
+
+  /* ===== 힌트 (허용된 유일한 애니메이션: 힌트 반짝임) ===== */
+  @keyframes hintBlink {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(31, 111, 235, 0); }
+    50%      { box-shadow: 0 0 0 8px rgba(31, 111, 235, 0.55); }
+  }
+  .hint-blink {
+    animation: hintBlink 1.2s ease-in-out infinite;
+    border-color: #1F6FEB !important;
+  }
+  .here-anchor { position: relative; }
+  .here-hint {
+    position: absolute; top: 4px; right: 4px;
+    background: #1F6FEB; color: #FFFFFF;
+    font-size: 22px; font-weight: 700;
+    padding: 4px 12px; border-radius: 16px;
+    pointer-events: none;
+  }
+
   /* ===== 홈 화면 (바깥 = 배려: 크고 친절하게) ===== */
-  #screen-home { padding: 24px; gap: 16px; }
+  #screen-home { padding: 112px 24px 24px; gap: 16px; }
   #screen-home h1 { font-size: 38px; text-align: center; margin: 24px 0 8px; }
   #screen-home p  { text-align: center; margin-bottom: 16px; }
   .home-card {
@@ -44,7 +69,8 @@
   #screen-practice { height: 100%; }
   /* 상단 진행 표시 */
   #progress-bar {
-    padding: 12px 24px; text-align: center;
+    min-height: 96px; display: flex; align-items: center;
+    padding: 8px 200px 8px 24px;      /* 우측은 소리 단추 자리 */
     font-size: 22px; font-weight: 700;
     background: #FFFFFF; border-bottom: 2px solid #1A1A1A;
   }
@@ -118,6 +144,9 @@
 </head>
 <body>
 
+<!-- 소리 켜기/끄기 (모든 화면 공통) -->
+<button id="btn-sound"></button>
+
 <!-- 홈 화면 -->
 <div id="screen-home" class="screen active">
   <h1 id="home-title"></h1>
@@ -168,7 +197,10 @@ const TEXT = {
   keypadOk: '확인',
   doneOk: '확인',
   completeTitle: '잘하셨어요',
-  retryBtn: '다시 하기'
+  retryBtn: '다시 하기',
+  soundOffBtn: '소리 끄기',   /* 켜져 있을 때 누르면 꺼짐 */
+  soundOnBtn: '소리 켜기',    /* 꺼져 있을 때 누르면 켜짐 */
+  hereHint: '여기예요'
 };
 
 /* ===== 시나리오 데이터 (새 시나리오는 여기에 데이터만 추가) ===== */
@@ -243,6 +275,123 @@ const SCENARIOS = {
 let currentScenarioKey = null;   // 지금 연습 중인 시나리오
 let currentStepIndex = 0;        // 지금 단계 번호 (0부터)
 let keypadValue = '';            // 숫자판 입력값
+let soundOn = true;              // 소리 기본 켜짐
+let koreanVoice = null;          // 고른 한국어 음성
+let wrongCount = 0;              // 이 단계에서 틀린 횟수
+let blinkTimer = null;           // 6초 반짝임 타이머
+let hereTimer = null;            // 12초 "여기예요" 타이머
+
+/* ===== 음성 안내 (지원 안 되면 조용히 넘어가고 글만 보여준다) ===== */
+function isSpeechSupported() {
+  return typeof window !== 'undefined'
+    && 'speechSynthesis' in window
+    && typeof SpeechSynthesisUtterance !== 'undefined';
+}
+
+/* 한국어 음성 고르기: 기기에 내장된(localService) 음성 우선 */
+function pickKoreanVoice() {
+  try {
+    const voices = window.speechSynthesis.getVoices();
+    const korean = voices.filter(v =>
+      (v.lang || '').replace('_', '-').toLowerCase().indexOf('ko') === 0);
+    koreanVoice = korean.find(v => v.localService) || korean[0] || null;
+  } catch (e) {
+    koreanVoice = null;
+  }
+}
+
+function speak(text) {
+  if (!soundOn || !isSpeechSupported()) return;
+  try {
+    if (!koreanVoice) pickKoreanVoice();
+    if (!koreanVoice) return;   // 한국어 음성이 없으면 글만 보여준다
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.voice = koreanVoice;
+    utter.lang = 'ko-KR';
+    utter.rate = 0.9;
+    window.speechSynthesis.speak(utter);
+  } catch (e) { /* 어떤 경우에도 소리 때문에 앱이 깨지지 않는다 */ }
+}
+
+function stopSpeech() {
+  try { if (isSpeechSupported()) window.speechSynthesis.cancel(); } catch (e) {}
+}
+
+/* 첫 사용자 조작에서 무음 발화 한 번으로 소리를 깨워 둔다 */
+function primeSpeech() {
+  try {
+    if (!isSpeechSupported()) return;
+    const utter = new SpeechSynthesisUtterance(' ');
+    utter.volume = 0;
+    window.speechSynthesis.speak(utter);
+  } catch (e) {}
+}
+
+function toggleSound() {
+  soundOn = !soundOn;
+  if (!soundOn) stopSpeech();
+  updateSoundButton();
+}
+
+function updateSoundButton() {
+  document.getElementById('btn-sound').textContent =
+    soundOn ? TEXT.soundOffBtn : TEXT.soundOnBtn;
+}
+
+/* ===== 힌트 3단계 =====
+   6초 조작 없음 → 정답 반짝임 / 오답 2회 또는 12초 → "여기예요" */
+function clearHintTimers() {
+  if (blinkTimer) { clearTimeout(blinkTimer); blinkTimer = null; }
+  if (hereTimer) { clearTimeout(hereTimer); hereTimer = null; }
+  document.querySelectorAll('.hint-blink').forEach(el => el.classList.remove('hint-blink'));
+  document.querySelectorAll('.here-hint').forEach(el => el.remove());
+  document.querySelectorAll('.here-anchor').forEach(el => el.classList.remove('here-anchor'));
+}
+
+/* 조작이 있을 때마다 다시 6초/12초를 센다 */
+function armHintTimers() {
+  clearHintTimers();
+  blinkTimer = setTimeout(showBlinkHint, 6000);
+  hereTimer = setTimeout(showHereHint, 12000);
+}
+
+/* 지금 단계에서 반짝여야 할 곳 찾기 */
+function getHintTarget() {
+  const step = getCurrentStep();
+  if (!step) return null;
+  const body = document.getElementById('kiosk-body');
+  if (step.layout === 'keypad') {
+    // 다 입력했으면 [확인], 아직이면 숫자판 전체를 가리킨다
+    if (keypadValue.length === step.digits) return body.querySelector('[data-ok]');
+    return body.querySelector('.keypad-grid');
+  }
+  return body.querySelector('[data-correct]') || body.querySelector('[data-ok]');
+}
+
+function showBlinkHint() {
+  const target = getHintTarget();
+  if (target) target.classList.add('hint-blink');
+}
+
+function showHereHint() {
+  const target = getHintTarget();
+  if (!target || target.querySelector('.here-hint')) return;
+  target.classList.add('here-anchor');
+  const badge = document.createElement('span');
+  badge.className = 'here-hint';
+  badge.textContent = TEXT.hereHint;
+  target.appendChild(badge);
+}
+
+/* 오답 공통 처리: 힌트 글 + 음성 + 횟수 세기 */
+function handleWrong(step) {
+  wrongCount++;
+  setGuide(step.wrongHint, true);
+  speak(step.wrongHint);
+  armHintTimers();
+  if (wrongCount >= 2) showHereHint();
+}
 
 /* ===== 화면 전환 ===== */
 function showScreen(id) {
@@ -251,6 +400,8 @@ function showScreen(id) {
 }
 
 function goHome() {
+  clearHintTimers();
+  stopSpeech();
   currentScenarioKey = null;
   currentStepIndex = 0;
   keypadValue = '';
@@ -266,6 +417,7 @@ function startScenario(key) {
 }
 
 function showComplete() {
+  clearHintTimers();
   showScreen('screen-complete');
 }
 
@@ -276,10 +428,13 @@ function setGuide(text, isWrong) {
   el.classList.toggle('wrong', !!isWrong);
 }
 
-/* 다시 듣기: 지금은 안내 문구를 다시 보여준다 (음성은 다음 단계에서) */
+/* 다시 듣기: 안내 문구를 다시 보여주고 다시 읽어준다 */
 function repeatGuide() {
   const step = getCurrentStep();
-  if (step) setGuide(step.guide, false);
+  if (!step) return;
+  setGuide(step.guide, false);
+  speak(step.guide);
+  armHintTimers();
 }
 
 function getCurrentStep() {
@@ -304,7 +459,7 @@ function onOptionClick(option, step) {
   if (option.correct) {
     goNextStep();
   } else {
-    setGuide(step.wrongHint, true);
+    handleWrong(step);
   }
 }
 
@@ -313,6 +468,10 @@ function renderStep() {
   const scenario = SCENARIOS[currentScenarioKey];
   const step = scenario.steps[currentStepIndex];
   const total = scenario.steps.length;
+
+  // 단계가 바뀔 때: 틀린 횟수 초기화 + 이전 타이머 전부 해제 (누수 방지)
+  wrongCount = 0;
+  clearHintTimers();
 
   // 진행 표시 + 키오스크 머리글 + 도우미 안내
   document.getElementById('progress-bar').textContent =
@@ -342,6 +501,7 @@ function renderStep() {
       const btn = document.createElement('button');
       btn.className = 'kiosk-btn';
       btn.textContent = option.label;
+      if (option.correct) btn.setAttribute('data-correct', '1'); // 힌트가 가리킬 곳
       btn.addEventListener('click', () => onOptionClick(option, step));
       wrap.appendChild(btn);
     });
@@ -358,9 +518,14 @@ function renderStep() {
     const btn = document.createElement('button');
     btn.className = 'kiosk-btn';
     btn.textContent = TEXT.doneOk;
+    btn.setAttribute('data-ok', '1');
     btn.addEventListener('click', goNextStep);
     body.appendChild(btn);
   }
+
+  // 새 단계: 안내를 읽어주고 힌트 시계를 새로 켠다
+  speak(step.guide);
+  armHintTimers();
 }
 
 /* 숫자판 그리기 */
@@ -383,14 +548,16 @@ function renderKeypad(body, step) {
         // 지우기: 마지막 한 자리를 지운다
         keypadValue = keypadValue.slice(0, -1);
         updateKeypadDisplay();
+        armHintTimers(); // 조작이 있었으니 힌트 시계 다시 시작
       });
     } else if (key === TEXT.keypadOk) {
+      btn.setAttribute('data-ok', '1'); // 다 입력했을 때 힌트가 가리킬 곳
       btn.addEventListener('click', () => {
         // 자릿수를 다 채웠을 때만 다음 단계로
         if (keypadValue.length === step.digits) {
           goNextStep();
         } else {
-          setGuide(step.wrongHint, true);
+          handleWrong(step);
         }
       });
     } else {
@@ -400,6 +567,7 @@ function renderKeypad(body, step) {
           keypadValue += key;
           updateKeypadDisplay();
         }
+        armHintTimers(); // 조작이 있었으니 힌트 시계 다시 시작
       });
     }
     grid.appendChild(btn);
@@ -441,6 +609,21 @@ function initApp() {
   const retryBtn = document.getElementById('btn-retry');
   retryBtn.textContent = TEXT.retryBtn;
   retryBtn.addEventListener('click', () => startScenario('hospital'));
+
+  // 소리 켜기/끄기 (기본 켜짐)
+  updateSoundButton();
+  document.getElementById('btn-sound').addEventListener('click', toggleSound);
+
+  // 첫 사용자 조작(홈 화면 첫 클릭 포함)에서 무음 발화로 소리를 깨워 둔다
+  document.addEventListener('click', primeSpeech, { once: true });
+
+  // 음성 목록이 늦게 도착해도 다시 고른다 (미지원이면 조용히 넘어감)
+  try {
+    if (isSpeechSupported()) {
+      window.speechSynthesis.addEventListener('voiceschanged', pickKoreanVoice);
+      pickKoreanVoice();
+    }
+  } catch (e) {}
 }
 
 initApp();
