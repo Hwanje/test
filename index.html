@@ -163,6 +163,34 @@
   }
   .demo-card { border-color: #C2410C !important; color: #C2410C !important; }
 
+  /* 어려운 말: 점선 밑줄 + 옅은 노란 배경 */
+  .gloss {
+    text-decoration: underline dotted 2px;
+    text-underline-offset: 4px;
+    background: #FFF4C2;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  /* 말풍선: 화면 아래에 크게. 떠 있어도 연습은 계속된다 */
+  #gloss-bubble {
+    display: none;
+    position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 20;
+    background: #FFFFFF; border: 4px solid #1F6FEB; border-radius: 16px;
+    padding: 16px; box-shadow: 0 8px 24px rgba(26, 26, 26, 0.25);
+  }
+  #gloss-bubble.open { display: block; }
+  #gloss-word { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  #gloss-easy { font-size: 26px; line-height: 1.5; }
+  #gloss-detail { font-size: 22px; line-height: 1.5; margin-top: 8px; }
+  .gloss-buttons { display: flex; gap: 16px; margin-top: 16px; }
+  .gloss-buttons button {
+    flex: 1; font-size: 26px; font-weight: 700;
+    background: #1F6FEB; color: #FFFFFF; border: none;
+  }
+  .gloss-buttons #btn-gloss-close {
+    background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
+  }
+
   /* --- 바깥 = 배려: 도우미 영역 --- */
   #helper-area {
     flex: 1; display: flex; flex-direction: column;
@@ -304,6 +332,17 @@
   <button id="btn-demo-end"></button>
 </div>
 
+<!-- 어려운 말 풀이 말풍선 -->
+<div id="gloss-bubble">
+  <div id="gloss-word"></div>
+  <div id="gloss-easy"></div>
+  <div id="gloss-detail"></div>
+  <div class="gloss-buttons">
+    <button id="btn-gloss-listen"></button>
+    <button id="btn-gloss-close"></button>
+  </div>
+</div>
+
 <!-- 인쇄용 순서표 (인쇄할 때만 보임) -->
 <div id="print-sheet"></div>
 
@@ -331,6 +370,9 @@ const TEXT = {
   demoEndLine2: '어르신은 매일 이 화면 앞에 서 있습니다.',
   demoEndLine3: '그래서 저희는 시간 제한을 없앴습니다.',
   demoEndBtn: '이제 연습해 볼까요',
+  glossListen: '소리로 듣기',
+  glossClose: '닫기',
+  learnedTitle: '오늘 새로 배운 말',
   progress: (now, total) => now + ' / ' + total + ' 단계',
   repeatBtn: '다시 듣기',
   homeBtn: '처음으로',
@@ -354,6 +396,35 @@ const TEXT = {
   sheetTitleSuffix: ' 순서표',
   sheetSub: '지갑에 넣어 두고 하나씩 따라 하세요.',
   careMark: '★ 여기를 조심하세요'
+};
+
+/* ===== 어려운 말 풀이 사전 =====
+   키오스크 화면 속 이 단어들에 밑줄이 생기고, 누르면 뜻을 알려준다 */
+const GLOSSARY = {
+  '수납': { easy: '진료비를 내는 것이에요',
+            detail: '진료가 끝난 뒤에 돈을 내는 단계예요.' },
+  '접수': { easy: '왔다고 알리는 것이에요',
+            detail: '병원에 도착해서 이름을 올리는 첫 단계예요.' },
+  '증명서': { easy: '병원이 써 주는 서류예요',
+            detail: '진단서처럼 필요한 서류를 뽑는 거예요.' },
+  '진료과': { easy: '아픈 곳을 보는 곳이에요',
+            detail: '내과, 안과처럼 아픈 곳에 따라 나눈 곳이에요.' },
+  '본인확인': { easy: '내가 맞는지 확인하는 것이에요',
+            detail: '주민등록번호 같은 것으로 나를 확인하는 절차예요.' },
+  '적립': { easy: '점수를 모으는 것이에요',
+            detail: '살 때마다 점수를 모아 나중에 깎아 주는 거예요. 안 해도 돼요.' },
+  '포장': { easy: '싸서 가져가는 것이에요',
+            detail: '가게에서 먹지 않고 담아서 가져가는 거예요.' },
+  '매장': { easy: '가게 안을 말해요',
+            detail: '"매장에서"는 가게 안에서 먹고 간다는 뜻이에요.' },
+  '간편결제': { easy: '휴대폰으로 돈 내는 것이에요',
+            detail: '카드 대신 휴대폰으로 값을 치르는 방법이에요.' },
+  '선불': { easy: '먼저 돈을 내는 것이에요',
+            detail: '음식을 받기 전에 미리 값을 치르는 방식이에요.' },
+  '옵션': { easy: '더 고를 수 있는 것들이에요',
+            detail: '얼음 양, 크기처럼 덧붙여 고르는 항목이에요. 안 골라도 돼요.' },
+  '취소': { easy: '방금 한 것을 무르는 것이에요',
+            detail: '잘못 골랐을 때 누르면 앞 단계로 돌아가요.' }
 };
 
 /* ===== 시나리오 데이터 (새 시나리오는 여기에 데이터만 추가) ===== */
@@ -537,6 +608,7 @@ let wrongCount = 0;              // 이 단계에서 틀린 횟수
 let blinkTimer = null;           // 6초 반짝임 타이머
 let hereTimer = null;            // 12초 "여기예요" 타이머
 let stepRecords = [];            // 단계별 기록 (메모리에만 보관)
+let learnedTerms = [];           // 이번 연습에서 뜻을 찾아본 말들
 let stepStartAt = 0;             // 지금 단계를 시작한 시각
 let hintShownThisStep = false;   // 이 단계에서 힌트(반짝임/여기예요)가 떴는지
 
@@ -648,6 +720,67 @@ function showHereHint() {
   target.appendChild(badge);
 }
 
+/* ===== 어려운 말 풀이 =====
+   키오스크 안 글자 중 사전에 있는 말에 밑줄을 긋는다.
+   (혼자 해보기·체험에서는 도움이므로 긋지 않는다) */
+function glossaryRegex() {
+  // 긴 말 먼저, 글자 사이 띄어쓰기 허용 ("본인 확인"도 "본인확인"으로 인정)
+  const terms = Object.keys(GLOSSARY).sort((a, b) => b.length - a.length);
+  return new RegExp(terms.map(t => t.split('').join('\\s?')).join('|'), 'g');
+}
+
+function decorateGlossary(root) {
+  if (soloMode || demoMode) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach(node => {
+    // 정답 버튼 안에는 긋지 않는다: 정답을 누를 때마다 말풍선이 뜨면
+    // 주 진행이 방해받는다. 뜻 배우기는 오답 버튼·제목·안내문으로 충분하다.
+    const btn = node.parentElement && node.parentElement.closest('button');
+    if (btn && (btn.hasAttribute('data-correct') || btn.hasAttribute('data-ok'))) return;
+    const text = node.nodeValue;
+    const re = glossaryRegex();
+    let match, last = 0, found = false;
+    const frag = document.createDocumentFragment();
+    while ((match = re.exec(text))) {
+      found = true;
+      frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+      const span = document.createElement('span');
+      span.className = 'gloss';
+      span.textContent = match[0];
+      span.dataset.term = match[0].replace(/\s/g, '');
+      frag.appendChild(span);
+      last = match.index + match[0].length;
+    }
+    if (!found) return;
+    frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  });
+}
+
+/* 말풍선 열기: 연습은 그대로 이어진다 (버튼 동작을 막지 않는다) */
+function openGloss(term) {
+  const entry = GLOSSARY[term];
+  if (!entry) return;
+  document.getElementById('gloss-word').textContent = term;
+  document.getElementById('gloss-easy').textContent = entry.easy;
+  document.getElementById('gloss-detail').textContent = entry.detail;
+  document.getElementById('gloss-bubble').classList.add('open');
+  document.getElementById('gloss-bubble').dataset.term = term;
+  if (!learnedTerms.includes(term)) learnedTerms.push(term);
+}
+
+function closeGloss() {
+  document.getElementById('gloss-bubble').classList.remove('open');
+}
+
+function listenGloss() {
+  const term = document.getElementById('gloss-bubble').dataset.term;
+  const entry = GLOSSARY[term];
+  if (entry) speak(term + '. ' + entry.easy + ' ' + entry.detail);
+}
+
 /* 오답 공통 처리: 힌트 글 + 음성 + 횟수 세기
    혼자 해보기에서는 아무 반응 없이 화면만 그대로 둔다 (탓하지 않는다) */
 function handleWrong(step) {
@@ -668,6 +801,7 @@ function showScreen(id) {
 function goHome() {
   clearHintTimers();
   stopDemo();
+  closeGloss();
   stopSpeech();
   currentScenarioKey = null;
   currentStepIndex = 0;
@@ -681,6 +815,8 @@ function startScenario(key) {
   currentStepIndex = 0;
   keypadValue = '';
   stepRecords = [];
+  learnedTerms = [];
+  closeGloss();
   // 혼자 해보기면 안내 문구·[다시 듣기]를 숨긴다
   document.getElementById('screen-practice').classList.toggle('solo', soloMode);
   showScreen('screen-practice');
@@ -689,6 +825,7 @@ function startScenario(key) {
 
 function showComplete() {
   clearHintTimers();
+  closeGloss();
   const screen = document.getElementById('screen-complete');
   screen.classList.toggle('solo', soloMode);
   if (soloMode) {
@@ -891,6 +1028,9 @@ function renderStep() {
     body.appendChild(btn);
   }
 
+  // 어려운 말에 밑줄 긋기 (연습하기에서만)
+  decorateGlossary(body);
+
   // 새 단계: 안내를 읽어주고 힌트 시계를 새로 켠다
   speak(step.guide);
   armHintTimers();
@@ -1024,6 +1164,24 @@ function buildResultCard() {
       tips.appendChild(line);
     });
   }
+
+  // 오늘 새로 배운 말 (뜻을 찾아본 게 있을 때만)
+  if (learnedTerms.length > 0) {
+    const learnedTitle = document.createElement('div');
+    learnedTitle.className = 'result-section-title';
+    learnedTitle.style.marginTop = '16px';
+    learnedTitle.textContent = TEXT.learnedTitle;
+    tips.appendChild(learnedTitle);
+    learnedTerms.forEach(term => {
+      const line = document.createElement('div');
+      line.className = 'tip-line';
+      const word = document.createElement('strong');
+      word.textContent = term + ' ';
+      line.appendChild(word);
+      line.appendChild(document.createTextNode('— ' + GLOSSARY[term].easy));
+      tips.appendChild(line);
+    });
+  }
 }
 
 /* ===== 우리 부모님 맞춤 순서표 (인쇄용 A4 한 장) ===== */
@@ -1125,6 +1283,18 @@ function initApp() {
   retryBtn.textContent = TEXT.retryBtn;
   // 방금 한 시나리오를 같은 방식으로 다시 한다
   retryBtn.addEventListener('click', () => startScenario(currentScenarioKey || 'hospital'));
+
+  // 어려운 말 풀이: 키오스크 안 밑줄 단어를 누르면 말풍선
+  document.getElementById('kiosk-area').addEventListener('click', e => {
+    const gloss = e.target.closest('.gloss');
+    if (gloss) openGloss(gloss.dataset.term);
+  });
+  const glossListenBtn = document.getElementById('btn-gloss-listen');
+  glossListenBtn.textContent = TEXT.glossListen;
+  glossListenBtn.addEventListener('click', listenGloss);
+  const glossCloseBtn = document.getElementById('btn-gloss-close');
+  glossCloseBtn.textContent = TEXT.glossClose;
+  glossCloseBtn.addEventListener('click', closeGloss);
 
   // 소리 켜기/끄기 (기본 켜짐)
   updateSoundButton();
