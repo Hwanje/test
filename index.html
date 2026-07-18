@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>키오스크 연습장</title>
+<style>
+  /* ===== 디자인 시스템 (CLAUDE.md 수치 고정) ===== */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    font-size: 22px;               /* 본문 */
+    color: #1A1A1A;
+    background: #FFFFFF;
+  }
+  button {
+    font-family: inherit;
+    color: #1A1A1A;
+    min-height: 80px;              /* 버튼 최소 높이 */
+    border-radius: 16px;           /* 모서리 */
+    cursor: pointer;
+  }
+
+  /* ===== 화면 전환 ===== */
+  .screen { display: none; height: 100%; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ===== 홈 화면 (바깥 = 배려: 크고 친절하게) ===== */
+  #screen-home { padding: 24px; gap: 16px; }
+  #screen-home h1 { font-size: 38px; text-align: center; margin: 24px 0 8px; }
+  #screen-home p  { text-align: center; margin-bottom: 16px; }
+  .home-card {
+    display: block; width: 100%; min-height: 160px;
+    font-size: 28px; font-weight: 700;
+    background: #FFFFFF; border: 3px solid #1F6FEB; color: #1F6FEB;
+  }
+  .home-card:disabled {
+    border-color: #767676; color: #767676; cursor: default;
+  }
+  .home-card .card-sub { display: block; font-size: 22px; font-weight: 400; margin-top: 8px; }
+
+  /* ===== 연습 화면 ===== */
+  #screen-practice { height: 100%; }
+  /* 상단 진행 표시 */
+  #progress-bar {
+    padding: 12px 24px; text-align: center;
+    font-size: 22px; font-weight: 700;
+    background: #FFFFFF; border-bottom: 2px solid #1A1A1A;
+  }
+
+  /* --- 안쪽 = 현실 재현: 실제 키오스크처럼 무뚝뚝하고 빽빽하게 --- */
+  #kiosk-area {
+    flex: 2; overflow-y: auto;
+    background: #FFFFFF;
+    padding: 16px 24px;
+    display: flex; flex-direction: column;
+  }
+  #kiosk-frame {
+    flex: 1; display: flex; flex-direction: column;
+    border: 4px solid #1A1A1A; border-radius: 16px; overflow: hidden;
+  }
+  #kiosk-header {
+    background: #1A1A1A; color: #FFFFFF;
+    font-size: 22px; padding: 10px 16px;
+  }
+  #kiosk-body { flex: 1; padding: 16px; overflow-y: auto; }
+  #kiosk-title { font-size: 28px; font-weight: 700; margin-bottom: 16px; }
+  .kiosk-btn {
+    font-size: 28px;               /* 키오스크 버튼 */
+    background: #FFFFFF; border: 2px solid #1A1A1A;
+    width: 100%;
+  }
+  .kiosk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .kiosk-list { display: flex; flex-direction: column; gap: 16px; }
+  /* 숫자판 */
+  .keypad-display {
+    font-size: 38px; letter-spacing: 8px; text-align: center;
+    border: 2px solid #1A1A1A; border-radius: 16px;
+    min-height: 80px; line-height: 76px; margin-bottom: 16px;
+  }
+  .keypad-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  /* 확인/완료 안내문 */
+  .kiosk-message { font-size: 28px; line-height: 1.5; margin-bottom: 16px; }
+
+  /* --- 바깥 = 배려: 도우미 영역 --- */
+  #helper-area {
+    flex: 1; display: flex; flex-direction: column;
+    padding: 16px 24px; gap: 16px;
+    border-top: 4px solid #1F6FEB;
+    background: #FFFFFF;
+  }
+  #guide-text {
+    flex: 1; font-size: 26px;      /* 도우미 안내 */
+    line-height: 1.5; color: #1F6FEB; font-weight: 700;
+  }
+  #guide-text.wrong { color: #C2410C; } /* 주의색: 틀렸을 때 힌트 */
+  .helper-buttons { display: flex; gap: 16px; }
+  .helper-btn {
+    flex: 1; font-size: 26px; font-weight: 700;
+    background: #1F6FEB; color: #FFFFFF; border: none;
+  }
+  .helper-btn.secondary {
+    background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
+  }
+
+  /* ===== 완료 화면 ===== */
+  #screen-complete {
+    justify-content: center; align-items: center;
+    padding: 24px; gap: 16px; text-align: center;
+  }
+  #screen-complete h1 { font-size: 38px; color: #0F7B3E; }
+  #screen-complete button {
+    width: 100%; max-width: 480px; font-size: 28px; font-weight: 700;
+    background: #1F6FEB; color: #FFFFFF; border: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- 홈 화면 -->
+<div id="screen-home" class="screen active">
+  <h1 id="home-title"></h1>
+  <p id="home-guide"></p>
+  <button id="card-hospital" class="home-card"></button>
+  <button id="card-cafe" class="home-card" disabled></button>
+</div>
+
+<!-- 연습 화면 -->
+<div id="screen-practice" class="screen">
+  <div id="progress-bar"></div>
+  <div id="kiosk-area">
+    <div id="kiosk-frame">
+      <div id="kiosk-header"></div>
+      <div id="kiosk-body"></div>
+    </div>
+  </div>
+  <div id="helper-area">
+    <div id="guide-text"></div>
+    <div class="helper-buttons">
+      <button id="btn-repeat" class="helper-btn"></button>
+      <button id="btn-home" class="helper-btn secondary"></button>
+    </div>
+  </div>
+</div>
+
+<!-- 완료 화면 -->
+<div id="screen-complete" class="screen">
+  <h1 id="complete-title"></h1>
+  <button id="btn-retry"></button>
+</div>
+
+<script>
+'use strict';
+
+/* ===== 사용자에게 보이는 모든 공통 문구 ===== */
+const TEXT = {
+  appTitle: '키오스크 연습장',
+  homeGuide: '연습할 것을 골라 주세요.',
+  hospitalCard: '병원 접수',
+  hospitalCardSub: '무인 접수기 연습',
+  cafeCard: '카페 주문',
+  cafeCardSub: '준비 중',
+  progress: (now, total) => now + ' / ' + total + ' 단계',
+  repeatBtn: '다시 듣기',
+  homeBtn: '처음으로',
+  keypadClear: '지우기',
+  keypadOk: '확인',
+  doneOk: '확인',
+  completeTitle: '잘하셨어요',
+  retryBtn: '다시 하기'
+};
+
+/* ===== 시나리오 데이터 (새 시나리오는 여기에 데이터만 추가) ===== */
+const SCENARIOS = {
+  hospital: {
+    title: '병원 무인 접수기',
+    steps: [
+      {
+        layout: 'grid',
+        kioskTitle: '무엇을 도와드릴까요?',
+        guide: '병원에 왔으니 먼저 접수를 해요. "접수"를 눌러주세요.',
+        options: [
+          { label: '접수', correct: true },
+          { label: '수납' },
+          { label: '증명서 발급' },
+          { label: '건강검진' }
+        ],
+        wrongHint: '그건 진료가 끝난 뒤에 누르는 거예요. 지금은 "접수"를 눌러요.'
+      },
+      {
+        layout: 'grid',
+        kioskTitle: '본인 확인 방법을 선택하세요',
+        guide: '이번에는 주민등록번호로 해볼게요. "주민등록번호"를 눌러주세요.',
+        options: [
+          { label: '주민등록번호', correct: true },
+          { label: '휴대폰번호' }
+        ],
+        wrongHint: '괜찮아요. 이번 연습은 "주민등록번호"로 해요.'
+      },
+      {
+        layout: 'keypad',
+        kioskTitle: '생년월일 앞 6자리를 입력하세요',
+        guide: '생년월일 여섯 자리를 눌러요. 예: 480312',
+        digits: 6,
+        wrongHint: '괜찮아요. 여섯 자리를 다 누른 뒤 "확인"을 눌러요.'
+      },
+      {
+        layout: 'list',
+        kioskTitle: '진료과를 선택하세요',
+        guide: '오늘은 감기 때문에 왔어요. "내과"를 눌러주세요.',
+        options: [
+          { label: '내과', correct: true },
+          { label: '정형외과' },
+          { label: '안과' },
+          { label: '피부과' },
+          { label: '신경과' }
+        ],
+        wrongHint: '감기는 내과에서 봐요. "내과"를 눌러주세요.'
+      },
+      {
+        layout: 'confirm',
+        kioskTitle: '예약 내용을 확인하세요',
+        message: '김순자 님, 내과 오전 10시 30분 맞습니까?',
+        guide: '내용이 맞는지 보고 "예"를 눌러주세요.',
+        options: [
+          { label: '예', correct: true },
+          { label: '아니오' }
+        ],
+        wrongHint: '괜찮아요. 연습이니 내용이 맞아요. "예"를 눌러주세요.'
+      },
+      {
+        layout: 'done',
+        kioskTitle: '접수 완료',
+        message: '접수가 끝났습니다. 대기번호 23번. 3층 내과 앞에서 기다려 주세요.',
+        guide: '접수가 다 됐어요! "확인"을 누르면 끝나요.'
+      }
+    ]
+  }
+};
+
+/* ===== 상태 (전부 메모리) ===== */
+let currentScenarioKey = null;   // 지금 연습 중인 시나리오
+let currentStepIndex = 0;        // 지금 단계 번호 (0부터)
+let keypadValue = '';            // 숫자판 입력값
+
+/* ===== 화면 전환 ===== */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goHome() {
+  currentScenarioKey = null;
+  currentStepIndex = 0;
+  keypadValue = '';
+  showScreen('screen-home');
+}
+
+function startScenario(key) {
+  currentScenarioKey = key;
+  currentStepIndex = 0;
+  keypadValue = '';
+  showScreen('screen-practice');
+  renderStep();
+}
+
+function showComplete() {
+  showScreen('screen-complete');
+}
+
+/* ===== 도우미 영역 문구 ===== */
+function setGuide(text, isWrong) {
+  const el = document.getElementById('guide-text');
+  el.textContent = text;
+  el.classList.toggle('wrong', !!isWrong);
+}
+
+/* 다시 듣기: 지금은 안내 문구를 다시 보여준다 (음성은 다음 단계에서) */
+function repeatGuide() {
+  const step = getCurrentStep();
+  if (step) setGuide(step.guide, false);
+}
+
+function getCurrentStep() {
+  if (!currentScenarioKey) return null;
+  return SCENARIOS[currentScenarioKey].steps[currentStepIndex];
+}
+
+/* ===== 단계 진행 ===== */
+function goNextStep() {
+  const steps = SCENARIOS[currentScenarioKey].steps;
+  if (currentStepIndex < steps.length - 1) {
+    currentStepIndex++;
+    keypadValue = '';
+    renderStep();
+  } else {
+    showComplete();
+  }
+}
+
+/* 선택 버튼을 눌렀을 때: 맞으면 다음, 틀리면 힌트만 (화면은 그대로) */
+function onOptionClick(option, step) {
+  if (option.correct) {
+    goNextStep();
+  } else {
+    setGuide(step.wrongHint, true);
+  }
+}
+
+/* ===== 범용 렌더러: 데이터를 읽어 키오스크 화면을 그린다 ===== */
+function renderStep() {
+  const scenario = SCENARIOS[currentScenarioKey];
+  const step = scenario.steps[currentStepIndex];
+  const total = scenario.steps.length;
+
+  // 진행 표시 + 키오스크 머리글 + 도우미 안내
+  document.getElementById('progress-bar').textContent =
+    TEXT.progress(currentStepIndex + 1, total);
+  document.getElementById('kiosk-header').textContent = scenario.title;
+  setGuide(step.guide, false);
+
+  // 키오스크 본문 새로 그리기
+  const body = document.getElementById('kiosk-body');
+  body.textContent = '';
+
+  const title = document.createElement('div');
+  title.id = 'kiosk-title';
+  title.textContent = step.kioskTitle;
+  body.appendChild(title);
+
+  if (step.layout === 'grid' || step.layout === 'list' || step.layout === 'confirm') {
+    if (step.message) {
+      const msg = document.createElement('div');
+      msg.className = 'kiosk-message';
+      msg.textContent = step.message;
+      body.appendChild(msg);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = (step.layout === 'grid') ? 'kiosk-grid' : 'kiosk-list';
+    step.options.forEach(option => {
+      const btn = document.createElement('button');
+      btn.className = 'kiosk-btn';
+      btn.textContent = option.label;
+      btn.addEventListener('click', () => onOptionClick(option, step));
+      wrap.appendChild(btn);
+    });
+    body.appendChild(wrap);
+
+  } else if (step.layout === 'keypad') {
+    renderKeypad(body, step);
+
+  } else if (step.layout === 'done') {
+    const msg = document.createElement('div');
+    msg.className = 'kiosk-message';
+    msg.textContent = step.message;
+    body.appendChild(msg);
+    const btn = document.createElement('button');
+    btn.className = 'kiosk-btn';
+    btn.textContent = TEXT.doneOk;
+    btn.addEventListener('click', goNextStep);
+    body.appendChild(btn);
+  }
+}
+
+/* 숫자판 그리기 */
+function renderKeypad(body, step) {
+  const display = document.createElement('div');
+  display.className = 'keypad-display';
+  display.id = 'keypad-display';
+  body.appendChild(display);
+  updateKeypadDisplay();
+
+  const grid = document.createElement('div');
+  grid.className = 'keypad-grid';
+  const keys = ['1','2','3','4','5','6','7','8','9', TEXT.keypadClear, '0', TEXT.keypadOk];
+  keys.forEach(key => {
+    const btn = document.createElement('button');
+    btn.className = 'kiosk-btn';
+    btn.textContent = key;
+    if (key === TEXT.keypadClear) {
+      btn.addEventListener('click', () => {
+        // 지우기: 마지막 한 자리를 지운다
+        keypadValue = keypadValue.slice(0, -1);
+        updateKeypadDisplay();
+      });
+    } else if (key === TEXT.keypadOk) {
+      btn.addEventListener('click', () => {
+        // 자릿수를 다 채웠을 때만 다음 단계로
+        if (keypadValue.length === step.digits) {
+          goNextStep();
+        } else {
+          setGuide(step.wrongHint, true);
+        }
+      });
+    } else {
+      btn.addEventListener('click', () => {
+        // 자릿수를 넘으면 더 입력되지 않는다
+        if (keypadValue.length < step.digits) {
+          keypadValue += key;
+          updateKeypadDisplay();
+        }
+      });
+    }
+    grid.appendChild(btn);
+  });
+  body.appendChild(grid);
+}
+
+function updateKeypadDisplay() {
+  const el = document.getElementById('keypad-display');
+  if (el) el.textContent = keypadValue;
+}
+
+/* ===== 처음 한 번: 고정 문구 채우고 버튼 연결 ===== */
+function initApp() {
+  document.getElementById('home-title').textContent = TEXT.appTitle;
+  document.getElementById('home-guide').textContent = TEXT.homeGuide;
+
+  const hospitalCard = document.getElementById('card-hospital');
+  hospitalCard.textContent = TEXT.hospitalCard;
+  const hospitalSub = document.createElement('span');
+  hospitalSub.className = 'card-sub';
+  hospitalSub.textContent = TEXT.hospitalCardSub;
+  hospitalCard.appendChild(hospitalSub);
+  hospitalCard.addEventListener('click', () => startScenario('hospital'));
+
+  const cafeCard = document.getElementById('card-cafe');
+  cafeCard.textContent = TEXT.cafeCard;
+  const cafeSub = document.createElement('span');
+  cafeSub.className = 'card-sub';
+  cafeSub.textContent = TEXT.cafeCardSub;
+  cafeCard.appendChild(cafeSub);
+
+  document.getElementById('btn-repeat').textContent = TEXT.repeatBtn;
+  document.getElementById('btn-repeat').addEventListener('click', repeatGuide);
+  document.getElementById('btn-home').textContent = TEXT.homeBtn;
+  document.getElementById('btn-home').addEventListener('click', goHome);
+
+  document.getElementById('complete-title').textContent = TEXT.completeTitle;
+  const retryBtn = document.getElementById('btn-retry');
+  retryBtn.textContent = TEXT.retryBtn;
+  retryBtn.addEventListener('click', () => startScenario('hospital'));
+}
+
+initApp();
+</script>
+</body>
+</html>
