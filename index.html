@@ -287,6 +287,21 @@
   .tip-line { font-size: calc(22px * var(--scale)); line-height: 1.6; }
   .tip-line strong { color: #C2410C; }
 
+  /* 순서표 복사 결과 안내 + 미지원 대비 직접 선택 상자 */
+  #copy-status {
+    display: none; width: 100%; max-width: 480px;
+    font-size: calc(26px * var(--scale)); font-weight: 700;
+    color: #0F7B3E; line-height: 1.5;
+  }
+  #copy-status.show { display: block; }
+  #copy-fallback {
+    display: none; width: 100%; max-width: 480px; height: 240px;
+    font-family: inherit; font-size: 22px; line-height: 1.5;
+    padding: 16px; border: 3px solid #1A1A1A; border-radius: 16px;
+  }
+  #copy-fallback.show { display: block; }
+  #screen-complete.solo #btn-copy { display: none; }
+
   /* ===== [처음으로] 확인창 ===== */
   #confirm-home {
     display: none;
@@ -393,6 +408,9 @@
     <div id="result-tips"></div>
   </div>
   <button id="btn-print"></button>
+  <button id="btn-copy"></button>
+  <div id="copy-status"></div>
+  <textarea id="copy-fallback" readonly></textarea>
   <button id="btn-retry"></button>
 </div>
 
@@ -465,6 +483,9 @@ const TEXT = {
   confirmHomeQ: '정말 처음으로 갈까요?',
   confirmYes: '예',
   confirmNo: '아니오',
+  copyBtn: '순서표 글로 복사하기',
+  copyDone: '복사했어요. 가족에게 문자로 붙여넣기 하세요',
+  copyFallback: '아래 글을 길게 눌러 복사하세요',
   progress: (now, total) => now + ' / ' + total + ' 단계',
   repeatBtn: '다시 듣기',
   homeBtn: '처음으로',
@@ -958,6 +979,7 @@ function showComplete() {
   clearHintTimers();
   stopAds();
   closeGloss();
+  resetCopyUI();
   const screen = document.getElementById('screen-complete');
   screen.classList.toggle('solo', soloMode);
   if (soloMode) {
@@ -1417,6 +1439,55 @@ function printSheet() {
   try { window.print(); } catch (e) { /* 인쇄가 막혀도 앱은 깨지지 않는다 */ }
 }
 
+/* ===== 순서표를 글로 복사: 가족에게 문자로 보내는 용도 ===== */
+function buildSheetText() {
+  const scenario = SCENARIOS[currentScenarioKey];
+  const hardSteps = findHardSteps();
+  const lines = [scenario.title + TEXT.sheetTitleSuffix];
+  scenario.steps.forEach((step, i) => {
+    // 어려웠던 단계는 ★ 표시
+    lines.push((i + 1) + '. ' + (hardSteps.includes(i) ? '★ ' : '') + step.tip);
+  });
+  return lines.join('\n');
+}
+
+function resetCopyUI() {
+  const status = document.getElementById('copy-status');
+  status.textContent = '';
+  status.classList.remove('show');
+  document.getElementById('copy-fallback').classList.remove('show');
+}
+
+function copySheet() {
+  const text = buildSheetText();
+  const status = document.getElementById('copy-status');
+  const fallback = document.getElementById('copy-fallback');
+  // 복사가 안 되는 기기: 글을 띄워 직접 선택하게 한다
+  const showFallback = () => {
+    try {
+      fallback.value = text;
+      fallback.classList.add('show');
+      status.textContent = TEXT.copyFallback;
+      status.classList.add('show');
+      fallback.focus();
+      fallback.select();
+    } catch (e) { /* 여기서도 앱은 깨지지 않는다 */ }
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        fallback.classList.remove('show');
+        status.textContent = TEXT.copyDone;
+        status.classList.add('show');
+      }).catch(showFallback);
+    } else {
+      showFallback();
+    }
+  } catch (e) {
+    showFallback();
+  }
+}
+
 /* ===== 처음 한 번: 고정 문구 채우고 버튼 연결 ===== */
 function initApp() {
   document.getElementById('home-title').textContent = TEXT.appTitle;
@@ -1485,6 +1556,9 @@ function initApp() {
   const printBtn = document.getElementById('btn-print');
   printBtn.textContent = TEXT.printBtn;
   printBtn.addEventListener('click', printSheet);
+  const copyBtn = document.getElementById('btn-copy');
+  copyBtn.textContent = TEXT.copyBtn;
+  copyBtn.addEventListener('click', copySheet);
   const retryBtn = document.getElementById('btn-retry');
   retryBtn.textContent = TEXT.retryBtn;
   // 방금 한 시나리오를 같은 방식으로 다시 한다
