@@ -64,6 +64,14 @@
     border-color: #767676; color: #767676; cursor: default;
   }
   .home-card .card-sub { display: block; font-size: 22px; font-weight: 400; margin-top: 8px; }
+  /* 연습하기 / 혼자 해보기 선택 */
+  #mode-question { text-align: center; margin-bottom: 0; }
+  #mode-row { display: flex; gap: 16px; }
+  .mode-btn {
+    flex: 1; font-size: 26px; font-weight: 700;
+    background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
+  }
+  .mode-btn.selected { background: #1F6FEB; color: #FFFFFF; }
 
   /* ===== 연습 화면 ===== */
   #screen-practice { height: 100%; }
@@ -109,6 +117,10 @@
   /* 확인/완료 안내문 */
   .kiosk-message { font-size: 28px; line-height: 1.5; margin-bottom: 16px; }
 
+  /* 혼자 해보기: 안내 문구와 [다시 듣기]를 숨긴다 ([처음으로]는 남김) */
+  #screen-practice.solo #guide-text,
+  #screen-practice.solo #btn-repeat { display: none; }
+
   /* --- 바깥 = 배려: 도우미 영역 --- */
   #helper-area {
     flex: 1; display: flex; flex-direction: column;
@@ -137,6 +149,12 @@
   }
   #screen-complete h1 { font-size: 38px; color: #0F7B3E; }
   #total-time { font-size: 38px; font-weight: 700; }
+  /* 혼자 해보기 완주: 축하만 크게, 기록·인쇄는 숨김 */
+  #complete-sub { display: none; font-size: 26px; line-height: 1.5; }
+  #screen-complete.solo #complete-sub { display: block; }
+  #screen-complete.solo #total-time,
+  #screen-complete.solo #result-card,
+  #screen-complete.solo #btn-print { display: none; }
   #screen-complete button {
     width: 100%; max-width: 480px; font-size: 28px; font-weight: 700;
     background: #1F6FEB; color: #FFFFFF; border: none; flex-shrink: 0;
@@ -191,9 +209,14 @@
 <!-- 홈 화면 -->
 <div id="screen-home" class="screen active">
   <h1 id="home-title"></h1>
+  <p id="mode-question"></p>
+  <div id="mode-row">
+    <button id="btn-mode-practice" class="mode-btn"></button>
+    <button id="btn-mode-solo" class="mode-btn"></button>
+  </div>
   <p id="home-guide"></p>
   <button id="card-hospital" class="home-card"></button>
-  <button id="card-cafe" class="home-card" disabled></button>
+  <button id="card-cafe" class="home-card"></button>
 </div>
 
 <!-- 연습 화면 -->
@@ -217,6 +240,7 @@
 <!-- 완료 화면 = 결과 카드 -->
 <div id="screen-complete" class="screen">
   <h1 id="complete-title"></h1>
+  <div id="complete-sub"></div>
   <div id="total-time"></div>
   <div id="result-card">
     <div class="result-section-title" id="chart-title"></div>
@@ -236,11 +260,16 @@
 /* ===== 사용자에게 보이는 모든 공통 문구 ===== */
 const TEXT = {
   appTitle: '키오스크 연습장',
-  homeGuide: '연습할 것을 골라 주세요.',
+  homeGuide: '해볼 것을 골라 주세요.',
+  modeQuestion: '어떻게 해볼까요?',
+  modePractice: '연습하기',
+  modeSolo: '혼자 해보기',
   hospitalCard: '병원 접수',
-  hospitalCardSub: '무인 접수기 연습',
+  hospitalCardSub: '무인 접수기',
   cafeCard: '카페 주문',
-  cafeCardSub: '준비 중',
+  cafeCardSub: '무인 주문기',
+  soloCompleteTitle: '혼자서 해내셨어요!',
+  soloCompleteSub: '도움 없이 처음부터 끝까지 해냈어요. 이제 진짜 기계 앞에서도 문제없어요.',
   progress: (now, total) => now + ' / ' + total + ' 단계',
   repeatBtn: '다시 듣기',
   homeBtn: '처음으로',
@@ -337,6 +366,97 @@ const SCENARIOS = {
         tip: '대기번호를 확인하고 자리에서 기다리세요.'
       }
     ]
+  },
+  cafe: {
+    title: '카페 무인 주문기',
+    steps: [
+      {
+        layout: 'grid',
+        kioskTitle: '어디에서 드시겠어요?',
+        guide: '오늘은 가게에서 마시고 가요. "매장에서 먹고 가기"를 눌러주세요.',
+        options: [
+          { label: '매장에서 먹고 가기', correct: true },
+          { label: '포장해서 가져가기' }
+        ],
+        wrongHint: '괜찮아요. 오늘은 마시고 갈 거예요. "매장에서 먹고 가기"를 눌러요.',
+        tip: '먼저 매장인지 포장인지 고르세요.'
+      },
+      {
+        layout: 'grid',
+        kioskTitle: '메뉴를 선택하세요',
+        guide: '아메리카노는 커피 칸에 있어요. "커피"를 눌러주세요.',
+        options: [
+          { label: '커피', correct: true },
+          { label: '음료' },
+          { label: '차' },
+          { label: '빵·과자' }
+        ],
+        wrongHint: '괜찮아요. 마실 커피는 "커피" 칸에 있어요.',
+        tip: '마실 것의 칸("커피")부터 누르세요.'
+      },
+      {
+        layout: 'grid',
+        kioskTitle: '커피를 선택하세요',
+        guide: '"아메리카노"를 눌러주세요.',
+        options: [
+          { label: '아메리카노', correct: true },
+          { label: '카페라떼' },
+          { label: '카푸치노' },
+          { label: '바닐라라떼' }
+        ],
+        wrongHint: '괜찮아요. 오늘은 "아메리카노"를 마셔요.',
+        tip: '마실 것("아메리카노")을 누르세요.'
+      },
+      {
+        layout: 'grid',
+        kioskTitle: '온도를 선택하세요',
+        guide: '따뜻하게 마셔요. "뜨겁게"를 눌러주세요.',
+        options: [
+          { label: '뜨겁게(HOT)', correct: true },
+          { label: '차갑게(ICE)' }
+        ],
+        wrongHint: '괜찮아요. 오늘은 따뜻한 걸로 해요. "뜨겁게"를 눌러요.',
+        tip: '뜨겁게, 차갑게 중에 고르세요.'
+      },
+      {
+        layout: 'confirm',
+        kioskTitle: '장바구니 확인',
+        message: '아메리카노(뜨거운 것) 1잔 · 4,500원',
+        guide: '주문 내용을 읽어 보고 "주문하기"를 눌러주세요.',
+        options: [
+          { label: '주문하기', correct: true },
+          { label: '더 담기' }
+        ],
+        wrongHint: '괜찮아요. 오늘은 한 잔만 시켜요. "주문하기"를 눌러요.',
+        tip: '주문 내용을 읽고 "주문하기"를 누르세요.'
+      },
+      {
+        layout: 'grid',
+        kioskTitle: '결제 방법을 선택하세요',
+        guide: '결제(돈 내기)는 카드로 해요. "신용카드"를 눌러주세요.',
+        options: [
+          { label: '신용카드', correct: true },
+          { label: '휴대폰 결제' },
+          { label: '상품권' }
+        ],
+        wrongHint: '괜찮아요. 오늘은 카드로 내요. "신용카드"를 눌러요.',
+        tip: '결제(돈 내기)는 "신용카드"를 누르세요.'
+      },
+      {
+        layout: 'done',
+        kioskTitle: '카드를 넣어 주세요',
+        message: '화면 아래 투입구에 카드를 끝까지 넣어 주세요.',
+        guide: '기계 아래에 카드 넣는 곳이 있어요. 여기서는 "확인"을 눌러요.',
+        tip: '카드는 아래 투입구에 끝까지 넣으세요.'
+      },
+      {
+        layout: 'done',
+        kioskTitle: '주문 완료',
+        message: '주문이 완료되었습니다. 주문번호 47번. 번호가 불리면 받아 가세요.',
+        guide: '주문번호 47번이에요. "확인"을 누르면 끝나요.',
+        tip: '주문번호를 확인하고 기다리세요.'
+      }
+    ]
   }
 };
 
@@ -345,6 +465,7 @@ let currentScenarioKey = null;   // 지금 연습 중인 시나리오
 let currentStepIndex = 0;        // 지금 단계 번호 (0부터)
 let keypadValue = '';            // 숫자판 입력값
 let soundOn = true;              // 소리 기본 켜짐
+let soloMode = false;            // 혼자 해보기: 음성·힌트·안내 없이 진행
 let koreanVoice = null;          // 고른 한국어 음성
 let wrongCount = 0;              // 이 단계에서 틀린 횟수
 let blinkTimer = null;           // 6초 반짝임 타이머
@@ -373,6 +494,7 @@ function pickKoreanVoice() {
 }
 
 function speak(text) {
+  if (soloMode) return;           // 혼자 해보기: 음성 없음
   if (!soundOn || !isSpeechSupported()) return;
   try {
     if (!koreanVoice) pickKoreanVoice();
@@ -424,6 +546,7 @@ function clearHintTimers() {
 /* 조작이 있을 때마다 다시 6초/12초를 센다 */
 function armHintTimers() {
   clearHintTimers();
+  if (soloMode) return;           // 혼자 해보기: 힌트 없음
   blinkTimer = setTimeout(showBlinkHint, 6000);
   hereTimer = setTimeout(showHereHint, 12000);
 }
@@ -459,9 +582,11 @@ function showHereHint() {
   target.appendChild(badge);
 }
 
-/* 오답 공통 처리: 힌트 글 + 음성 + 횟수 세기 */
+/* 오답 공통 처리: 힌트 글 + 음성 + 횟수 세기
+   혼자 해보기에서는 아무 반응 없이 화면만 그대로 둔다 (탓하지 않는다) */
 function handleWrong(step) {
   wrongCount++;
+  if (soloMode) return;
   setGuide(step.wrongHint, true);
   speak(step.wrongHint);
   armHintTimers();
@@ -488,15 +613,33 @@ function startScenario(key) {
   currentStepIndex = 0;
   keypadValue = '';
   stepRecords = [];
+  // 혼자 해보기면 안내 문구·[다시 듣기]를 숨긴다
+  document.getElementById('screen-practice').classList.toggle('solo', soloMode);
   showScreen('screen-practice');
   renderStep();
 }
 
 function showComplete() {
   clearHintTimers();
-  buildResultCard();
-  buildPrintSheet();
+  const screen = document.getElementById('screen-complete');
+  screen.classList.toggle('solo', soloMode);
+  if (soloMode) {
+    // 혼자 해보기: 기록 없이 축하만
+    document.getElementById('complete-title').textContent = TEXT.soloCompleteTitle;
+    document.getElementById('complete-sub').textContent = TEXT.soloCompleteSub;
+  } else {
+    document.getElementById('complete-title').textContent = TEXT.completeTitle;
+    buildResultCard();
+    buildPrintSheet();
+  }
   showScreen('screen-complete');
+}
+
+/* 연습하기 / 혼자 해보기 고르기 */
+function setMode(solo) {
+  soloMode = solo;
+  document.getElementById('btn-mode-practice').classList.toggle('selected', !solo);
+  document.getElementById('btn-mode-solo').classList.toggle('selected', solo);
 }
 
 /* ===== 도우미 영역 문구 ===== */
@@ -805,6 +948,17 @@ function initApp() {
   cafeSub.className = 'card-sub';
   cafeSub.textContent = TEXT.cafeCardSub;
   cafeCard.appendChild(cafeSub);
+  cafeCard.addEventListener('click', () => startScenario('cafe'));
+
+  // 연습하기 / 혼자 해보기 (기본: 연습하기)
+  document.getElementById('mode-question').textContent = TEXT.modeQuestion;
+  const modePracticeBtn = document.getElementById('btn-mode-practice');
+  modePracticeBtn.textContent = TEXT.modePractice;
+  modePracticeBtn.addEventListener('click', () => setMode(false));
+  const modeSoloBtn = document.getElementById('btn-mode-solo');
+  modeSoloBtn.textContent = TEXT.modeSolo;
+  modeSoloBtn.addEventListener('click', () => setMode(true));
+  setMode(false);
 
   document.getElementById('btn-repeat').textContent = TEXT.repeatBtn;
   document.getElementById('btn-repeat').addEventListener('click', repeatGuide);
@@ -818,7 +972,8 @@ function initApp() {
   printBtn.addEventListener('click', printSheet);
   const retryBtn = document.getElementById('btn-retry');
   retryBtn.textContent = TEXT.retryBtn;
-  retryBtn.addEventListener('click', () => startScenario('hospital'));
+  // 방금 한 시나리오를 같은 방식으로 다시 한다
+  retryBtn.addEventListener('click', () => startScenario(currentScenarioKey || 'hospital'));
 
   // 소리 켜기/끄기 (기본 켜짐)
   updateSoundButton();
