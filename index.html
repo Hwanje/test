@@ -121,6 +121,48 @@
   #screen-practice.solo #guide-text,
   #screen-practice.solo #btn-repeat { display: none; }
 
+  /* ===== 체험 모드: 어르신이 겪는 화면 그대로 =====
+     (카운트다운 금지 규칙의 유일한 예외 구역이다) */
+  #demo-timer, #demo-queue { display: none; }
+  .demo #progress-bar, .demo #helper-area { display: none; }
+  .demo #demo-timer {
+    display: block; text-align: center; padding: 12px;
+    font-size: 26px; font-weight: 700; color: #C2410C;
+    border-bottom: 2px solid #1A1A1A;
+  }
+  .demo #demo-timer.urgent {
+    font-size: 38px;
+    animation: demoBlink 0.6s step-start infinite;
+  }
+  @keyframes demoBlink { 50% { opacity: 0.15; } }
+  .demo #demo-queue {
+    display: block; text-align: center; padding: 16px;
+    font-size: 22px; border-top: 2px solid #1A1A1A;
+  }
+  #demo-queue .queue-icons { letter-spacing: 4px; }
+  /* 체험 모드 키오스크: 실제처럼 작고 빽빽한 글씨 */
+  .demo #kiosk-header { font-size: 14px; }
+  .demo #kiosk-title { font-size: 16px; margin-bottom: 8px; }
+  .demo .kiosk-btn { font-size: 15px; min-height: 44px; }
+  .demo .kiosk-grid, .demo .keypad-grid { gap: 8px; }
+  .demo .kiosk-message { font-size: 15px; }
+  .demo .keypad-display {
+    font-size: 16px; min-height: 44px; line-height: 42px; letter-spacing: 4px;
+  }
+
+  /* 체험 뒤 전환 화면 */
+  #screen-demo-end {
+    justify-content: center; align-items: center;
+    padding: 24px; gap: 16px; text-align: center;
+  }
+  #screen-demo-end h1 { font-size: 38px; }
+  #screen-demo-end p { font-size: 26px; line-height: 1.5; }
+  #screen-demo-end button {
+    width: 100%; max-width: 480px; font-size: 28px; font-weight: 700;
+    background: #1F6FEB; color: #FFFFFF; border: none;
+  }
+  .demo-card { border-color: #C2410C !important; color: #C2410C !important; }
+
   /* --- 바깥 = 배려: 도우미 영역 --- */
   #helper-area {
     flex: 1; display: flex; flex-direction: column;
@@ -217,17 +259,20 @@
   <p id="home-guide"></p>
   <button id="card-hospital" class="home-card"></button>
   <button id="card-cafe" class="home-card"></button>
+  <button id="card-demo" class="home-card demo-card"></button>
 </div>
 
 <!-- 연습 화면 -->
 <div id="screen-practice" class="screen">
   <div id="progress-bar"></div>
+  <div id="demo-timer"></div>
   <div id="kiosk-area">
     <div id="kiosk-frame">
       <div id="kiosk-header"></div>
       <div id="kiosk-body"></div>
     </div>
   </div>
+  <div id="demo-queue"></div>
   <div id="helper-area">
     <div id="guide-text"></div>
     <div class="helper-buttons">
@@ -251,6 +296,14 @@
   <button id="btn-retry"></button>
 </div>
 
+<!-- 체험 뒤 전환 화면 -->
+<div id="screen-demo-end" class="screen">
+  <h1 id="demo-end-line1"></h1>
+  <p id="demo-end-line2"></p>
+  <p id="demo-end-line3"></p>
+  <button id="btn-demo-end"></button>
+</div>
+
 <!-- 인쇄용 순서표 (인쇄할 때만 보임) -->
 <div id="print-sheet"></div>
 
@@ -270,6 +323,14 @@ const TEXT = {
   cafeCardSub: '무인 주문기',
   soloCompleteTitle: '혼자서 해내셨어요!',
   soloCompleteSub: '도움 없이 처음부터 끝까지 해냈어요. 이제 진짜 기계 앞에서도 문제없어요.',
+  demoCard: '먼저 체험해 보기',
+  demoCardSub: '어르신은 이렇게 느낍니다',
+  demoSeconds: n => n + '초',
+  demoQueue: n => '뒤에 ' + n + '명이 기다리고 있습니다',
+  demoEndLine1: '지금 조금 답답하셨나요?',
+  demoEndLine2: '어르신은 매일 이 화면 앞에 서 있습니다.',
+  demoEndLine3: '그래서 저희는 시간 제한을 없앴습니다.',
+  demoEndBtn: '이제 연습해 볼까요',
   progress: (now, total) => now + ' / ' + total + ' 단계',
   repeatBtn: '다시 듣기',
   homeBtn: '처음으로',
@@ -466,6 +527,11 @@ let currentStepIndex = 0;        // 지금 단계 번호 (0부터)
 let keypadValue = '';            // 숫자판 입력값
 let soundOn = true;              // 소리 기본 켜짐
 let soloMode = false;            // 혼자 해보기: 음성·힌트·안내 없이 진행
+let demoMode = false;            // 체험 모드: 시간 압박을 그대로 보여준다
+let demoCountdown = 15;          // 체험 모드 남은 초
+let demoTimerId = null;          // 1초 카운트다운 시계
+let demoQueue = 3;               // 뒤에 기다리는 사람 수
+let demoQueueTimerId = null;     // 5초마다 1명 증가 시계
 let koreanVoice = null;          // 고른 한국어 음성
 let wrongCount = 0;              // 이 단계에서 틀린 횟수
 let blinkTimer = null;           // 6초 반짝임 타이머
@@ -494,7 +560,7 @@ function pickKoreanVoice() {
 }
 
 function speak(text) {
-  if (soloMode) return;           // 혼자 해보기: 음성 없음
+  if (soloMode || demoMode) return; // 혼자 해보기·체험: 음성 없음
   if (!soundOn || !isSpeechSupported()) return;
   try {
     if (!koreanVoice) pickKoreanVoice();
@@ -546,7 +612,7 @@ function clearHintTimers() {
 /* 조작이 있을 때마다 다시 6초/12초를 센다 */
 function armHintTimers() {
   clearHintTimers();
-  if (soloMode) return;           // 혼자 해보기: 힌트 없음
+  if (soloMode || demoMode) return; // 혼자 해보기·체험: 힌트 없음
   blinkTimer = setTimeout(showBlinkHint, 6000);
   hereTimer = setTimeout(showHereHint, 12000);
 }
@@ -586,7 +652,7 @@ function showHereHint() {
    혼자 해보기에서는 아무 반응 없이 화면만 그대로 둔다 (탓하지 않는다) */
 function handleWrong(step) {
   wrongCount++;
-  if (soloMode) return;
+  if (soloMode || demoMode) return;
   setGuide(step.wrongHint, true);
   speak(step.wrongHint);
   armHintTimers();
@@ -601,6 +667,7 @@ function showScreen(id) {
 
 function goHome() {
   clearHintTimers();
+  stopDemo();
   stopSpeech();
   currentScenarioKey = null;
   currentStepIndex = 0;
@@ -609,6 +676,7 @@ function goHome() {
 }
 
 function startScenario(key) {
+  stopDemo(); // 체험 모드 흔적(시계·화면 상태)을 확실히 정리
   currentScenarioKey = key;
   currentStepIndex = 0;
   keypadValue = '';
@@ -633,6 +701,68 @@ function showComplete() {
     buildPrintSheet();
   }
   showScreen('screen-complete');
+}
+
+/* ===== 체험 모드: 15초 압박 + 뒤에 줄 서는 사람들 ===== */
+function startDemo() {
+  demoMode = true;
+  currentScenarioKey = 'hospital';
+  currentStepIndex = 0;
+  keypadValue = '';
+  stepRecords = [];
+  const practice = document.getElementById('screen-practice');
+  practice.classList.remove('solo');
+  practice.classList.add('demo');
+  showScreen('screen-practice');
+  renderStep();
+  // 15초 카운트다운 + 5초마다 1명씩 늘어나는 줄
+  demoCountdown = 15;
+  demoQueue = 3;
+  updateDemoTimer();
+  updateDemoQueue();
+  demoTimerId = setInterval(tickDemoTimer, 1000);
+  demoQueueTimerId = setInterval(growDemoQueue, 5000);
+}
+
+function tickDemoTimer() {
+  demoCountdown--;
+  updateDemoTimer();
+  if (demoCountdown <= 0) endDemo(); // 시간이 다 되면 전환 화면으로
+}
+
+function updateDemoTimer() {
+  const el = document.getElementById('demo-timer');
+  el.textContent = TEXT.demoSeconds(Math.max(0, demoCountdown));
+  el.classList.toggle('urgent', demoCountdown <= 5); // 5초부터 커지고 깜빡임
+}
+
+function growDemoQueue() {
+  demoQueue++;
+  updateDemoQueue();
+}
+
+function updateDemoQueue() {
+  const el = document.getElementById('demo-queue');
+  el.textContent = '';
+  const icons = document.createElement('div');
+  icons.className = 'queue-icons';
+  icons.textContent = '👤'.repeat(demoQueue);
+  el.appendChild(icons);
+  el.appendChild(document.createTextNode(TEXT.demoQueue(demoQueue)));
+}
+
+/* 체험 모드 시계를 전부 끈다 (누수 방지) */
+function stopDemo() {
+  if (demoTimerId) { clearInterval(demoTimerId); demoTimerId = null; }
+  if (demoQueueTimerId) { clearInterval(demoQueueTimerId); demoQueueTimerId = null; }
+  demoMode = false;
+  document.getElementById('screen-practice').classList.remove('demo');
+}
+
+/* 시간 초과 또는 3단계 완료 → 전환 화면 */
+function endDemo() {
+  stopDemo();
+  showScreen('screen-demo-end');
 }
 
 /* 연습하기 / 혼자 해보기 고르기 */
@@ -675,6 +805,11 @@ function recordCurrentStep() {
 /* ===== 단계 진행 ===== */
 function goNextStep() {
   recordCurrentStep(); // 방금 끝낸 단계를 기록하고 넘어간다
+  // 체험 모드는 3단계까지만 하고 전환 화면으로 간다
+  if (demoMode && currentStepIndex >= 2) {
+    endDemo();
+    return;
+  }
   const steps = SCENARIOS[currentScenarioKey].steps;
   if (currentStepIndex < steps.length - 1) {
     currentStepIndex++;
@@ -949,6 +1084,22 @@ function initApp() {
   cafeSub.textContent = TEXT.cafeCardSub;
   cafeCard.appendChild(cafeSub);
   cafeCard.addEventListener('click', () => startScenario('cafe'));
+
+  // 체험 모드: 심사위원·가족이 어르신의 답답함을 직접 느껴보는 문
+  const demoCard = document.getElementById('card-demo');
+  demoCard.textContent = TEXT.demoCard;
+  const demoSub = document.createElement('span');
+  demoSub.className = 'card-sub';
+  demoSub.textContent = TEXT.demoCardSub;
+  demoCard.appendChild(demoSub);
+  demoCard.addEventListener('click', startDemo);
+
+  document.getElementById('demo-end-line1').textContent = TEXT.demoEndLine1;
+  document.getElementById('demo-end-line2').textContent = TEXT.demoEndLine2;
+  document.getElementById('demo-end-line3').textContent = TEXT.demoEndLine3;
+  const demoEndBtn = document.getElementById('btn-demo-end');
+  demoEndBtn.textContent = TEXT.demoEndBtn;
+  demoEndBtn.addEventListener('click', () => { setMode(false); goHome(); });
 
   // 연습하기 / 혼자 해보기 (기본: 연습하기)
   document.getElementById('mode-question').textContent = TEXT.modeQuestion;
