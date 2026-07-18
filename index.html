@@ -113,6 +113,26 @@
     font-size: 22px; padding: 10px 16px;
   }
   #kiosk-body { flex: 1; padding: 16px; overflow-y: auto; }
+  /* 방해 요소: 회전 광고 (눌러도 아무 일 없음) */
+  #kiosk-ad {
+    font-size: 14px; text-align: center; padding: 8px 16px;
+    background: #F5F5F5; color: #1A1A1A;
+    border-bottom: 1px solid #767676; cursor: pointer;
+  }
+  /* 방해 요소: 작게 배치된 [이전]/[다음] (진행과 무관) */
+  #kiosk-nav {
+    display: flex; justify-content: space-between;
+    padding: 8px 16px; border-top: 1px solid #767676;
+  }
+  #kiosk-nav button {
+    min-height: 44px; font-size: 16px; padding: 0 16px;
+    background: #FFFFFF; border: 1px solid #767676; border-radius: 8px;
+  }
+  /* 방해 요소: 작은 약관 문구 */
+  #kiosk-terms {
+    font-size: 13px; color: #4A4A4A; line-height: 1.4;
+    padding: 4px 16px 10px;
+  }
   #kiosk-title { font-size: 28px; font-weight: 700; margin-bottom: 16px; }
   .kiosk-btn {
     font-size: 28px;               /* 키오스크 버튼 */
@@ -316,7 +336,13 @@
   <div id="kiosk-area">
     <div id="kiosk-frame">
       <div id="kiosk-header"></div>
+      <div id="kiosk-ad"></div>
       <div id="kiosk-body"></div>
+      <div id="kiosk-nav">
+        <button id="kiosk-prev"></button>
+        <button id="kiosk-next"></button>
+      </div>
+      <div id="kiosk-terms"></div>
     </div>
   </div>
   <div id="demo-queue"></div>
@@ -395,6 +421,9 @@ const TEXT = {
   sizeSmall: '가-',
   sizeMid: '가',
   sizeLarge: '가+',
+  adPrefix: '광고 | ',
+  kioskPrev: '이전',
+  kioskNext: '다음',
   progress: (now, total) => now + ' / ' + total + ' 단계',
   repeatBtn: '다시 듣기',
   homeBtn: '처음으로',
@@ -453,6 +482,12 @@ const GLOSSARY = {
 const SCENARIOS = {
   hospital: {
     title: '병원 무인 접수기',
+    ads: [
+      '독감 예방접종 사전예약 접수 중',
+      '주차 정산은 1층 무인정산기를 이용하세요',
+      '오늘의 외래 진료: 오전 9시 ~ 오후 5시'
+    ],
+    terms: '접수 취소는 원무과 창구에서만 가능합니다. 증명서 발급 수수료는 별도이며, 자세한 내용은 안내데스크에 문의하세요.',
     steps: [
       {
         layout: 'grid',
@@ -523,6 +558,12 @@ const SCENARIOS = {
   },
   cafe: {
     title: '카페 무인 주문기',
+    ads: [
+      '신메뉴 출시! 달콤한 흑임자 라떼',
+      '회원 적립 2배 행사 진행 중',
+      '텀블러 지참 시 300원 할인'
+    ],
+    terms: '본 기기는 선불 결제 전용입니다. 옵션 변경과 주문 취소는 카운터 직원에게 문의하세요. 영수증은 주문 완료 후 출력됩니다.',
     steps: [
       {
         layout: 'grid',
@@ -586,11 +627,22 @@ const SCENARIOS = {
       },
       {
         layout: 'grid',
+        kioskTitle: '적립하시겠습니까?',
+        guide: '적립(점수 모으기)은 오늘은 넘어가요. "적립 안 함"을 눌러주세요.',
+        options: [
+          { label: '적립 안 함', correct: true },
+          { label: '휴대폰 번호 적립' }
+        ],
+        wrongHint: '괜찮아요. 오늘은 적립 없이 가요. "적립 안 함"을 눌러요.',
+        tip: '적립은 안 해도 돼요. "적립 안 함"을 누르세요.'
+      },
+      {
+        layout: 'grid',
         kioskTitle: '결제 방법을 선택하세요',
         guide: '결제(돈 내기)는 카드로 해요. "신용카드"를 눌러주세요.',
         options: [
           { label: '신용카드', correct: true },
-          { label: '휴대폰 결제' },
+          { label: '간편결제' },
           { label: '상품권' }
         ],
         wrongHint: '괜찮아요. 오늘은 카드로 내요. "신용카드"를 눌러요.',
@@ -625,6 +677,8 @@ let demoCountdown = 15;          // 체험 모드 남은 초
 let demoTimerId = null;          // 1초 카운트다운 시계
 let demoQueue = 3;               // 뒤에 기다리는 사람 수
 let demoQueueTimerId = null;     // 5초마다 1명 증가 시계
+let adIndex = 0;                 // 지금 보이는 광고 번호
+let adTimerId = null;            // 3초 광고 회전 시계
 let koreanVoice = null;          // 고른 한국어 음성
 let wrongCount = 0;              // 이 단계에서 틀린 횟수
 let blinkTimer = null;           // 6초 반짝임 타이머
@@ -835,6 +889,7 @@ function showScreen(id) {
 function goHome() {
   clearHintTimers();
   stopDemo();
+  stopAds();
   closeGloss();
   stopSpeech();
   currentScenarioKey = null;
@@ -855,10 +910,12 @@ function startScenario(key) {
   document.getElementById('screen-practice').classList.toggle('solo', soloMode);
   showScreen('screen-practice');
   renderStep();
+  startAds();
 }
 
 function showComplete() {
   clearHintTimers();
+  stopAds();
   closeGloss();
   const screen = document.getElementById('screen-complete');
   screen.classList.toggle('solo', soloMode);
@@ -874,6 +931,34 @@ function showComplete() {
   showScreen('screen-complete');
 }
 
+/* ===== 방해 요소: 광고·약관 (정답 판정과 무관, 눌러도 아무 일 없음) ===== */
+function startAds() {
+  stopAds();
+  const scenario = SCENARIOS[currentScenarioKey];
+  if (!scenario || !scenario.ads || scenario.ads.length === 0) return;
+  adIndex = 0;
+  updateAd();
+  adTimerId = setInterval(() => {
+    adIndex = (adIndex + 1) % SCENARIOS[currentScenarioKey].ads.length;
+    updateAd();
+  }, 3000);
+  // 약관 문구도 이때 채운다 (밑줄 단어 포함 가능)
+  const terms = document.getElementById('kiosk-terms');
+  terms.textContent = scenario.terms || '';
+  decorateGlossary(terms);
+}
+
+function updateAd() {
+  const scenario = SCENARIOS[currentScenarioKey];
+  if (!scenario) return;
+  document.getElementById('kiosk-ad').textContent =
+    TEXT.adPrefix + scenario.ads[adIndex];
+}
+
+function stopAds() {
+  if (adTimerId) { clearInterval(adTimerId); adTimerId = null; }
+}
+
 /* ===== 체험 모드: 15초 압박 + 뒤에 줄 서는 사람들 ===== */
 function startDemo() {
   demoMode = true;
@@ -886,6 +971,7 @@ function startDemo() {
   practice.classList.add('demo');
   showScreen('screen-practice');
   renderStep();
+  startAds();
   // 15초 카운트다운 + 5초마다 1명씩 늘어나는 줄
   demoCountdown = 15;
   demoQueue = 3;
@@ -933,6 +1019,7 @@ function stopDemo() {
 /* 시간 초과 또는 3단계 완료 → 전환 화면 */
 function endDemo() {
   stopDemo();
+  stopAds();
   showScreen('screen-demo-end');
 }
 
@@ -1329,6 +1416,10 @@ function initApp() {
   const glossCloseBtn = document.getElementById('btn-gloss-close');
   glossCloseBtn.textContent = TEXT.glossClose;
   glossCloseBtn.addEventListener('click', closeGloss);
+
+  // 방해 요소 [이전]/[다음]: 진짜 키오스크처럼 있지만 아무 일도 하지 않는다
+  document.getElementById('kiosk-prev').textContent = TEXT.kioskPrev;
+  document.getElementById('kiosk-next').textContent = TEXT.kioskNext;
 
   // 소리 켜기/끄기 (기본 켜짐)
   updateSoundButton();
