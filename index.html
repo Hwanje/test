@@ -26,12 +26,26 @@
   .screen { display: none; height: 100%; }
   .screen.active { display: flex; flex-direction: column; }
 
-  /* ===== 소리 켜기/끄기 (모든 화면 우측 상단) ===== */
-  #btn-sound {
+  /* ===== 우측 상단 조절 단추: 글씨 크기 + 소리 =====
+     --scale 은 도우미 UI에만 적용한다. 키오스크 안 글씨는 고정(현실 재현). */
+  :root { --scale: 1; }
+  #top-controls {
     position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+    max-width: 70vw;
+  }
+  #btn-sound {
     font-size: 22px; font-weight: 700; padding: 0 20px;
     background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
   }
+  .size-btn {
+    width: 76px; font-weight: 700;
+    background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
+  }
+  .size-btn.selected { background: #1F6FEB; color: #FFFFFF; }
+  #btn-size-small { font-size: 20px; }
+  #btn-size-mid   { font-size: 26px; }
+  #btn-size-large { font-size: 32px; }
 
   /* ===== 힌트 (허용된 유일한 애니메이션: 힌트 반짝임) ===== */
   @keyframes hintBlink {
@@ -53,22 +67,22 @@
 
   /* ===== 홈 화면 (바깥 = 배려: 크고 친절하게) ===== */
   #screen-home { padding: 112px 24px 24px; gap: 16px; }
-  #screen-home h1 { font-size: 38px; text-align: center; margin: 24px 0 8px; }
-  #screen-home p  { text-align: center; margin-bottom: 16px; }
+  #screen-home h1 { font-size: calc(38px * var(--scale)); text-align: center; margin: 24px 0 8px; }
+  #screen-home p  { text-align: center; margin-bottom: 16px; font-size: calc(22px * var(--scale)); }
   .home-card {
     display: block; width: 100%; min-height: 160px;
-    font-size: 28px; font-weight: 700;
+    font-size: calc(28px * var(--scale)); font-weight: 700;
     background: #FFFFFF; border: 3px solid #1F6FEB; color: #1F6FEB;
   }
   .home-card:disabled {
     border-color: #767676; color: #767676; cursor: default;
   }
-  .home-card .card-sub { display: block; font-size: 22px; font-weight: 400; margin-top: 8px; }
+  .home-card .card-sub { display: block; font-size: calc(22px * var(--scale)); font-weight: 400; margin-top: 8px; }
   /* 연습하기 / 혼자 해보기 선택 */
   #mode-question { text-align: center; margin-bottom: 0; }
   #mode-row { display: flex; gap: 16px; }
   .mode-btn {
-    flex: 1; font-size: 26px; font-weight: 700;
+    flex: 1; font-size: calc(26px * var(--scale)); font-weight: 700;
     background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
   }
   .mode-btn.selected { background: #1F6FEB; color: #FFFFFF; }
@@ -79,7 +93,7 @@
   #progress-bar {
     min-height: 96px; display: flex; align-items: center;
     padding: 8px 200px 8px 24px;      /* 우측은 소리 단추 자리 */
-    font-size: 22px; font-weight: 700;
+    font-size: calc(22px * var(--scale)); font-weight: 700;
     background: #FFFFFF; border-bottom: 2px solid #1A1A1A;
   }
 
@@ -155,10 +169,10 @@
     justify-content: center; align-items: center;
     padding: 24px; gap: 16px; text-align: center;
   }
-  #screen-demo-end h1 { font-size: 38px; }
-  #screen-demo-end p { font-size: 26px; line-height: 1.5; }
+  #screen-demo-end h1 { font-size: calc(38px * var(--scale)); }
+  #screen-demo-end p { font-size: calc(26px * var(--scale)); line-height: 1.5; }
   #screen-demo-end button {
-    width: 100%; max-width: 480px; font-size: 28px; font-weight: 700;
+    width: 100%; max-width: 480px; font-size: calc(28px * var(--scale)); font-weight: 700;
     background: #1F6FEB; color: #FFFFFF; border: none;
   }
   .demo-card { border-color: #C2410C !important; color: #C2410C !important; }
@@ -179,12 +193,12 @@
     padding: 16px; box-shadow: 0 8px 24px rgba(26, 26, 26, 0.25);
   }
   #gloss-bubble.open { display: block; }
-  #gloss-word { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
-  #gloss-easy { font-size: 26px; line-height: 1.5; }
-  #gloss-detail { font-size: 22px; line-height: 1.5; margin-top: 8px; }
+  #gloss-word { font-size: calc(28px * var(--scale)); font-weight: 700; margin-bottom: 8px; }
+  #gloss-easy { font-size: calc(26px * var(--scale)); line-height: 1.5; }
+  #gloss-detail { font-size: calc(22px * var(--scale)); line-height: 1.5; margin-top: 8px; }
   .gloss-buttons { display: flex; gap: 16px; margin-top: 16px; }
   .gloss-buttons button {
-    flex: 1; font-size: 26px; font-weight: 700;
+    flex: 1; font-size: calc(26px * var(--scale)); font-weight: 700;
     background: #1F6FEB; color: #FFFFFF; border: none;
   }
   .gloss-buttons #btn-gloss-close {
@@ -199,13 +213,13 @@
     background: #FFFFFF;
   }
   #guide-text {
-    flex: 1; font-size: 26px;      /* 도우미 안내 */
+    flex: 1; font-size: calc(26px * var(--scale));      /* 도우미 안내 */
     line-height: 1.5; color: #1F6FEB; font-weight: 700;
   }
   #guide-text.wrong { color: #C2410C; } /* 주의색: 틀렸을 때 힌트 */
   .helper-buttons { display: flex; gap: 16px; }
   .helper-btn {
-    flex: 1; font-size: 26px; font-weight: 700;
+    flex: 1; font-size: calc(26px * var(--scale)); font-weight: 700;
     background: #1F6FEB; color: #FFFFFF; border: none;
   }
   .helper-btn.secondary {
@@ -217,16 +231,16 @@
     align-items: center; overflow-y: auto;
     padding: 112px 24px 24px; gap: 16px; text-align: center;
   }
-  #screen-complete h1 { font-size: 38px; color: #0F7B3E; }
-  #total-time { font-size: 38px; font-weight: 700; }
+  #screen-complete h1 { font-size: calc(38px * var(--scale)); color: #0F7B3E; }
+  #total-time { font-size: calc(38px * var(--scale)); font-weight: 700; }
   /* 혼자 해보기 완주: 축하만 크게, 기록·인쇄는 숨김 */
-  #complete-sub { display: none; font-size: 26px; line-height: 1.5; }
+  #complete-sub { display: none; font-size: calc(26px * var(--scale)); line-height: 1.5; }
   #screen-complete.solo #complete-sub { display: block; }
   #screen-complete.solo #total-time,
   #screen-complete.solo #result-card,
   #screen-complete.solo #btn-print { display: none; }
   #screen-complete button {
-    width: 100%; max-width: 480px; font-size: 28px; font-weight: 700;
+    width: 100%; max-width: 480px; font-size: calc(28px * var(--scale)); font-weight: 700;
     background: #1F6FEB; color: #FFFFFF; border: none; flex-shrink: 0;
   }
   #screen-complete #btn-retry {
@@ -239,16 +253,16 @@
     border: 3px solid #1A1A1A; border-radius: 16px;
     padding: 16px; text-align: left;
   }
-  .result-section-title { font-size: 26px; font-weight: 700; margin-bottom: 12px; }
+  .result-section-title { font-size: calc(26px * var(--scale)); font-weight: 700; margin-bottom: 12px; }
   .chart-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .chart-label { width: 92px; font-size: 22px; flex-shrink: 0; }
+  .chart-label { width: 92px; font-size: calc(22px * var(--scale)); flex-shrink: 0; }
   .chart-track { flex: 1; }
   .chart-bar { height: 32px; border-radius: 16px; background: #1F6FEB; }
   .chart-bar.hard { background: #C2410C; }
-  .chart-sec { width: 64px; font-size: 22px; text-align: right; flex-shrink: 0; }
+  .chart-sec { width: 64px; font-size: calc(22px * var(--scale)); text-align: right; flex-shrink: 0; }
   /* 어려웠던 곳 도움말 */
   #result-tips { margin-top: 16px; }
-  .tip-line { font-size: 22px; line-height: 1.6; }
+  .tip-line { font-size: calc(22px * var(--scale)); line-height: 1.6; }
   .tip-line strong { color: #C2410C; }
 
   /* ===== 인쇄용 순서표 (화면에서는 숨김) ===== */
@@ -273,8 +287,13 @@
 </head>
 <body>
 
-<!-- 소리 켜기/끄기 (모든 화면 공통) -->
-<button id="btn-sound"></button>
+<!-- 우측 상단: 글씨 크기(도우미 UI만) + 소리 켜기/끄기 -->
+<div id="top-controls">
+  <button id="btn-size-small" class="size-btn"></button>
+  <button id="btn-size-mid" class="size-btn"></button>
+  <button id="btn-size-large" class="size-btn"></button>
+  <button id="btn-sound"></button>
+</div>
 
 <!-- 홈 화면 -->
 <div id="screen-home" class="screen active">
@@ -373,6 +392,9 @@ const TEXT = {
   glossListen: '소리로 듣기',
   glossClose: '닫기',
   learnedTitle: '오늘 새로 배운 말',
+  sizeSmall: '가-',
+  sizeMid: '가',
+  sizeLarge: '가+',
   progress: (now, total) => now + ' / ' + total + ' 단계',
   repeatBtn: '다시 듣기',
   homeBtn: '처음으로',
@@ -658,6 +680,18 @@ function primeSpeech() {
     utter.volume = 0;
     window.speechSynthesis.speak(utter);
   } catch (e) {}
+}
+
+/* ===== 글씨 크기 조절: 도우미 UI에만 적용 (키오스크는 고정) ===== */
+const SCALE_LEVELS = [1.0, 1.3, 1.6];
+let scaleIndex = 0;
+
+function setScale(index) {
+  scaleIndex = index;
+  document.documentElement.style.setProperty('--scale', String(SCALE_LEVELS[index]));
+  ['btn-size-small', 'btn-size-mid', 'btn-size-large'].forEach((id, i) => {
+    document.getElementById(id).classList.toggle('selected', i === index);
+  });
 }
 
 function toggleSound() {
@@ -1299,6 +1333,16 @@ function initApp() {
   // 소리 켜기/끄기 (기본 켜짐)
   updateSoundButton();
   document.getElementById('btn-sound').addEventListener('click', toggleSound);
+
+  // 글씨 크기 3단계 (기본: 보통)
+  const sizeIds = ['btn-size-small', 'btn-size-mid', 'btn-size-large'];
+  const sizeLabels = [TEXT.sizeSmall, TEXT.sizeMid, TEXT.sizeLarge];
+  sizeIds.forEach((id, i) => {
+    const btn = document.getElementById(id);
+    btn.textContent = sizeLabels[i];
+    btn.addEventListener('click', () => setScale(i));
+  });
+  setScale(0);
 
   // 첫 사용자 조작(홈 화면 첫 클릭 포함)에서 무음 발화로 소리를 깨워 둔다
   document.addEventListener('click', primeSpeech, { once: true });
