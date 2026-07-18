@@ -130,15 +130,56 @@
     background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
   }
 
-  /* ===== 완료 화면 ===== */
+  /* ===== 완료 화면 = 결과 카드 ===== */
   #screen-complete {
-    justify-content: center; align-items: center;
-    padding: 24px; gap: 16px; text-align: center;
+    align-items: center; overflow-y: auto;
+    padding: 112px 24px 24px; gap: 16px; text-align: center;
   }
   #screen-complete h1 { font-size: 38px; color: #0F7B3E; }
+  #total-time { font-size: 38px; font-weight: 700; }
   #screen-complete button {
     width: 100%; max-width: 480px; font-size: 28px; font-weight: 700;
-    background: #1F6FEB; color: #FFFFFF; border: none;
+    background: #1F6FEB; color: #FFFFFF; border: none; flex-shrink: 0;
+  }
+  #screen-complete #btn-retry {
+    background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
+  }
+
+  /* 단계별 걸린 시간 막대 (CSS만 사용) */
+  #result-card {
+    width: 100%; max-width: 480px;
+    border: 3px solid #1A1A1A; border-radius: 16px;
+    padding: 16px; text-align: left;
+  }
+  .result-section-title { font-size: 26px; font-weight: 700; margin-bottom: 12px; }
+  .chart-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .chart-label { width: 92px; font-size: 22px; flex-shrink: 0; }
+  .chart-track { flex: 1; }
+  .chart-bar { height: 32px; border-radius: 16px; background: #1F6FEB; }
+  .chart-bar.hard { background: #C2410C; }
+  .chart-sec { width: 64px; font-size: 22px; text-align: right; flex-shrink: 0; }
+  /* 어려웠던 곳 도움말 */
+  #result-tips { margin-top: 16px; }
+  .tip-line { font-size: 22px; line-height: 1.6; }
+  .tip-line strong { color: #C2410C; }
+
+  /* ===== 인쇄용 순서표 (화면에서는 숨김) ===== */
+  #print-sheet { display: none; }
+  @media print {
+    @page { size: A4 portrait; margin: 15mm; }
+    /* 화면 요소(버튼·배경 포함)는 전부 숨기고 순서표만 남긴다 */
+    body > :not(#print-sheet) { display: none !important; }
+    body { background: #FFFFFF; }
+    #print-sheet { display: block !important; color: #000000; }
+    #print-sheet h1 {
+      font-size: 26pt; text-align: center;
+      margin: 0 0 6mm; padding-bottom: 4mm; border-bottom: 1pt solid #000000;
+    }
+    #print-sheet .sheet-sub { font-size: 13pt; text-align: center; margin-bottom: 8mm; }
+    #print-sheet ol { font-size: 17pt; line-height: 1.7; padding-left: 14mm; margin: 0; }
+    #print-sheet li { margin-bottom: 6mm; }
+    #print-sheet li.hard { font-weight: 700; }
+    #print-sheet li .care { display: block; font-size: 13pt; }
   }
 </style>
 </head>
@@ -173,11 +214,21 @@
   </div>
 </div>
 
-<!-- 완료 화면 -->
+<!-- 완료 화면 = 결과 카드 -->
 <div id="screen-complete" class="screen">
   <h1 id="complete-title"></h1>
+  <div id="total-time"></div>
+  <div id="result-card">
+    <div class="result-section-title" id="chart-title"></div>
+    <div id="result-chart"></div>
+    <div id="result-tips"></div>
+  </div>
+  <button id="btn-print"></button>
   <button id="btn-retry"></button>
 </div>
+
+<!-- 인쇄용 순서표 (인쇄할 때만 보임) -->
+<div id="print-sheet"></div>
 
 <script>
 'use strict';
@@ -200,7 +251,19 @@ const TEXT = {
   retryBtn: '다시 하기',
   soundOffBtn: '소리 끄기',   /* 켜져 있을 때 누르면 꺼짐 */
   soundOnBtn: '소리 켜기',    /* 꺼져 있을 때 누르면 켜짐 */
-  hereHint: '여기예요'
+  hereHint: '여기예요',
+  totalTime: (m, s) => (m > 0)
+    ? '총 ' + m + '분 ' + s + '초 만에 끝냈어요'
+    : '총 ' + s + '초 만에 끝냈어요',
+  chartTitle: '단계마다 걸린 시간',
+  stepLabel: n => n + '단계',
+  secondsLabel: s => s + '초',
+  tipsTitle: '다음엔 이렇게 하세요',
+  noHardSteps: '막힌 곳 없이 아주 잘하셨어요.',
+  printBtn: '이 순서표 인쇄하기',
+  sheetTitleSuffix: ' 순서표',
+  sheetSub: '지갑에 넣어 두고 하나씩 따라 하세요.',
+  careMark: '★ 여기를 조심하세요'
 };
 
 /* ===== 시나리오 데이터 (새 시나리오는 여기에 데이터만 추가) ===== */
@@ -218,7 +281,8 @@ const SCENARIOS = {
           { label: '증명서 발급' },
           { label: '건강검진' }
         ],
-        wrongHint: '그건 진료가 끝난 뒤에 누르는 거예요. 지금은 "접수"를 눌러요.'
+        wrongHint: '그건 진료가 끝난 뒤에 누르는 거예요. 지금은 "접수"를 눌러요.',
+        tip: '처음 화면에서는 "접수"를 누르세요.'
       },
       {
         layout: 'grid',
@@ -228,14 +292,16 @@ const SCENARIOS = {
           { label: '주민등록번호', correct: true },
           { label: '휴대폰번호' }
         ],
-        wrongHint: '괜찮아요. 이번 연습은 "주민등록번호"로 해요.'
+        wrongHint: '괜찮아요. 이번 연습은 "주민등록번호"로 해요.',
+        tip: '본인 확인은 "주민등록번호"를 누르세요.'
       },
       {
         layout: 'keypad',
         kioskTitle: '생년월일 앞 6자리를 입력하세요',
         guide: '생년월일 여섯 자리를 눌러요. 예: 480312',
         digits: 6,
-        wrongHint: '괜찮아요. 여섯 자리를 다 누른 뒤 "확인"을 눌러요.'
+        wrongHint: '괜찮아요. 여섯 자리를 다 누른 뒤 "확인"을 눌러요.',
+        tip: '생년월일 여섯 자리 뒤 "확인"을 누르세요.'
       },
       {
         layout: 'list',
@@ -248,7 +314,8 @@ const SCENARIOS = {
           { label: '피부과' },
           { label: '신경과' }
         ],
-        wrongHint: '감기는 내과에서 봐요. "내과"를 눌러주세요.'
+        wrongHint: '감기는 내과에서 봐요. "내과"를 눌러주세요.',
+        tip: '아픈 곳에 맞는 진료과를 고르세요.'
       },
       {
         layout: 'confirm',
@@ -259,13 +326,15 @@ const SCENARIOS = {
           { label: '예', correct: true },
           { label: '아니오' }
         ],
-        wrongHint: '괜찮아요. 연습이니 내용이 맞아요. "예"를 눌러주세요.'
+        wrongHint: '괜찮아요. 연습이니 내용이 맞아요. "예"를 눌러주세요.',
+        tip: '이름과 시간을 읽어 보고 "예"를 누르세요.'
       },
       {
         layout: 'done',
         kioskTitle: '접수 완료',
         message: '접수가 끝났습니다. 대기번호 23번. 3층 내과 앞에서 기다려 주세요.',
-        guide: '접수가 다 됐어요! "확인"을 누르면 끝나요.'
+        guide: '접수가 다 됐어요! "확인"을 누르면 끝나요.',
+        tip: '대기번호를 확인하고 자리에서 기다리세요.'
       }
     ]
   }
@@ -280,6 +349,9 @@ let koreanVoice = null;          // 고른 한국어 음성
 let wrongCount = 0;              // 이 단계에서 틀린 횟수
 let blinkTimer = null;           // 6초 반짝임 타이머
 let hereTimer = null;            // 12초 "여기예요" 타이머
+let stepRecords = [];            // 단계별 기록 (메모리에만 보관)
+let stepStartAt = 0;             // 지금 단계를 시작한 시각
+let hintShownThisStep = false;   // 이 단계에서 힌트(반짝임/여기예요)가 떴는지
 
 /* ===== 음성 안내 (지원 안 되면 조용히 넘어가고 글만 보여준다) ===== */
 function isSpeechSupported() {
@@ -371,12 +443,15 @@ function getHintTarget() {
 
 function showBlinkHint() {
   const target = getHintTarget();
-  if (target) target.classList.add('hint-blink');
+  if (!target) return;
+  target.classList.add('hint-blink');
+  hintShownThisStep = true;
 }
 
 function showHereHint() {
   const target = getHintTarget();
   if (!target || target.querySelector('.here-hint')) return;
+  hintShownThisStep = true;
   target.classList.add('here-anchor');
   const badge = document.createElement('span');
   badge.className = 'here-hint';
@@ -412,12 +487,15 @@ function startScenario(key) {
   currentScenarioKey = key;
   currentStepIndex = 0;
   keypadValue = '';
+  stepRecords = [];
   showScreen('screen-practice');
   renderStep();
 }
 
 function showComplete() {
   clearHintTimers();
+  buildResultCard();
+  buildPrintSheet();
   showScreen('screen-complete');
 }
 
@@ -442,8 +520,18 @@ function getCurrentStep() {
   return SCENARIOS[currentScenarioKey].steps[currentStepIndex];
 }
 
+/* ===== 단계별 기록 (메모리에만) ===== */
+function recordCurrentStep() {
+  stepRecords.push({
+    seconds: Math.round((Date.now() - stepStartAt) / 100) / 10, // 0.1초 단위
+    wrong: wrongCount,
+    hintShown: hintShownThisStep
+  });
+}
+
 /* ===== 단계 진행 ===== */
 function goNextStep() {
+  recordCurrentStep(); // 방금 끝낸 단계를 기록하고 넘어간다
   const steps = SCENARIOS[currentScenarioKey].steps;
   if (currentStepIndex < steps.length - 1) {
     currentStepIndex++;
@@ -471,6 +559,8 @@ function renderStep() {
 
   // 단계가 바뀔 때: 틀린 횟수 초기화 + 이전 타이머 전부 해제 (누수 방지)
   wrongCount = 0;
+  hintShownThisStep = false;
+  stepStartAt = Date.now();
   clearHintTimers();
 
   // 진행 표시 + 키오스크 머리글 + 도우미 안내
@@ -580,6 +670,122 @@ function updateKeypadDisplay() {
   if (el) el.textContent = keypadValue;
 }
 
+/* ===== 결과 카드 =====
+   어려웠던 곳: 걸린 시간이 평균의 1.8배 이상이거나 오답 1회 이상 */
+function findHardSteps() {
+  if (stepRecords.length === 0) return [];
+  const avg = stepRecords.reduce((sum, r) => sum + r.seconds, 0) / stepRecords.length;
+  return stepRecords.map((r, i) =>
+    (r.seconds >= avg * 1.8 || r.wrong >= 1) ? i : -1
+  ).filter(i => i >= 0);
+}
+
+function formatSeconds(sec) {
+  // 화면 표시용: 1초 미만도 1초로 보여준다 (0초는 어색해서)
+  return TEXT.secondsLabel(Math.max(1, Math.round(sec)));
+}
+
+function buildResultCard() {
+  const scenario = SCENARIOS[currentScenarioKey];
+  const hardSteps = findHardSteps();
+
+  // 총 시간: "총 O분 O초 만에 끝냈어요"
+  const totalSec = Math.max(1, Math.round(stepRecords.reduce((s, r) => s + r.seconds, 0)));
+  document.getElementById('total-time').textContent =
+    TEXT.totalTime(Math.floor(totalSec / 60), totalSec % 60);
+
+  // 단계별 걸린 시간 막대 (CSS만 사용)
+  const chart = document.getElementById('result-chart');
+  chart.textContent = '';
+  const maxSec = Math.max(...stepRecords.map(r => r.seconds), 1);
+  stepRecords.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'chart-row';
+
+    const label = document.createElement('div');
+    label.className = 'chart-label';
+    label.textContent = TEXT.stepLabel(i + 1);
+    row.appendChild(label);
+
+    const track = document.createElement('div');
+    track.className = 'chart-track';
+    const bar = document.createElement('div');
+    bar.className = 'chart-bar' + (hardSteps.includes(i) ? ' hard' : '');
+    bar.style.width = Math.max(6, Math.round(r.seconds / maxSec * 100)) + '%';
+    track.appendChild(bar);
+    row.appendChild(track);
+
+    const sec = document.createElement('div');
+    sec.className = 'chart-sec';
+    sec.textContent = formatSeconds(r.seconds);
+    row.appendChild(sec);
+
+    chart.appendChild(row);
+  });
+
+  // 어려웠던 단계의 tip → "다음엔 이렇게 하세요"
+  const tips = document.getElementById('result-tips');
+  tips.textContent = '';
+  const tipsTitle = document.createElement('div');
+  tipsTitle.className = 'result-section-title';
+  tipsTitle.textContent = TEXT.tipsTitle;
+  tips.appendChild(tipsTitle);
+  if (hardSteps.length === 0) {
+    const line = document.createElement('div');
+    line.className = 'tip-line';
+    line.textContent = TEXT.noHardSteps;
+    tips.appendChild(line);
+  } else {
+    hardSteps.forEach(i => {
+      const line = document.createElement('div');
+      line.className = 'tip-line';
+      const where = document.createElement('strong');
+      where.textContent = TEXT.stepLabel(i + 1) + ' ';
+      line.appendChild(where);
+      line.appendChild(document.createTextNode(scenario.steps[i].tip));
+      tips.appendChild(line);
+    });
+  }
+}
+
+/* ===== 우리 부모님 맞춤 순서표 (인쇄용 A4 한 장) ===== */
+function buildPrintSheet() {
+  const scenario = SCENARIOS[currentScenarioKey];
+  const hardSteps = findHardSteps();
+
+  const sheet = document.getElementById('print-sheet');
+  sheet.textContent = '';
+
+  const title = document.createElement('h1');
+  title.textContent = scenario.title + TEXT.sheetTitleSuffix;
+  sheet.appendChild(title);
+
+  const sub = document.createElement('div');
+  sub.className = 'sheet-sub';
+  sub.textContent = TEXT.sheetSub;
+  sheet.appendChild(sub);
+
+  const list = document.createElement('ol');
+  scenario.steps.forEach((step, i) => {
+    const item = document.createElement('li');
+    item.appendChild(document.createTextNode(step.tip));
+    if (hardSteps.includes(i)) {
+      // 어려웠던 단계: 굵게 + 조심 표시
+      item.className = 'hard';
+      const care = document.createElement('span');
+      care.className = 'care';
+      care.textContent = TEXT.careMark;
+      item.appendChild(care);
+    }
+    list.appendChild(item);
+  });
+  sheet.appendChild(list);
+}
+
+function printSheet() {
+  try { window.print(); } catch (e) { /* 인쇄가 막혀도 앱은 깨지지 않는다 */ }
+}
+
 /* ===== 처음 한 번: 고정 문구 채우고 버튼 연결 ===== */
 function initApp() {
   document.getElementById('home-title').textContent = TEXT.appTitle;
@@ -606,6 +812,10 @@ function initApp() {
   document.getElementById('btn-home').addEventListener('click', goHome);
 
   document.getElementById('complete-title').textContent = TEXT.completeTitle;
+  document.getElementById('chart-title').textContent = TEXT.chartTitle;
+  const printBtn = document.getElementById('btn-print');
+  printBtn.textContent = TEXT.printBtn;
+  printBtn.addEventListener('click', printSheet);
   const retryBtn = document.getElementById('btn-retry');
   retryBtn.textContent = TEXT.retryBtn;
   retryBtn.addEventListener('click', () => startScenario('hospital'));
