@@ -21,6 +21,8 @@
     border-radius: 16px;           /* 모서리 */
     cursor: pointer;
   }
+  /* 오터치 방지: 모든 버튼에 눌림 피드백(배경 어두워짐) */
+  button:active { filter: brightness(0.85); }
 
   /* ===== 화면 전환 ===== */
   .screen { display: none; height: 100%; }
@@ -285,6 +287,31 @@
   .tip-line { font-size: calc(22px * var(--scale)); line-height: 1.6; }
   .tip-line strong { color: #C2410C; }
 
+  /* ===== [처음으로] 확인창 ===== */
+  #confirm-home {
+    display: none;
+    position: fixed; inset: 0; z-index: 30;
+    background: rgba(26, 26, 26, 0.55);
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  #confirm-home.open { display: flex; }
+  #confirm-box {
+    width: 100%; max-width: 480px;
+    background: #FFFFFF; border-radius: 16px; padding: 24px;
+  }
+  #confirm-question {
+    font-size: calc(26px * var(--scale)); font-weight: 700;
+    text-align: center; margin-bottom: 16px; line-height: 1.5;
+  }
+  .confirm-buttons { display: flex; gap: 16px; }
+  .confirm-buttons button {
+    flex: 1; font-size: calc(26px * var(--scale)); font-weight: 700;
+    background: #1F6FEB; color: #FFFFFF; border: none;
+  }
+  .confirm-buttons #btn-confirm-no {
+    background: #FFFFFF; color: #1F6FEB; border: 3px solid #1F6FEB;
+  }
+
   /* ===== 인쇄용 순서표 (화면에서는 숨김) ===== */
   #print-sheet { display: none; }
   @media print {
@@ -377,6 +404,17 @@
   <button id="btn-demo-end"></button>
 </div>
 
+<!-- [처음으로] 확인창 -->
+<div id="confirm-home">
+  <div id="confirm-box">
+    <div id="confirm-question"></div>
+    <div class="confirm-buttons">
+      <button id="btn-confirm-yes"></button>
+      <button id="btn-confirm-no"></button>
+    </div>
+  </div>
+</div>
+
 <!-- 어려운 말 풀이 말풍선 -->
 <div id="gloss-bubble">
   <div id="gloss-word"></div>
@@ -424,6 +462,9 @@ const TEXT = {
   adPrefix: '광고 | ',
   kioskPrev: '이전',
   kioskNext: '다음',
+  confirmHomeQ: '정말 처음으로 갈까요?',
+  confirmYes: '예',
+  confirmNo: '아니오',
   progress: (now, total) => now + ' / ' + total + ' 단계',
   repeatBtn: '다시 듣기',
   homeBtn: '처음으로',
@@ -931,6 +972,39 @@ function showComplete() {
   showScreen('screen-complete');
 }
 
+/* ===== 오터치 방지 =====
+   같은 버튼을 400ms 안에 또 누르면 손떨림으로 보고 무시한다.
+   모든 버튼 눌림에 짧은 진동(미지원이면 조용히 넘어감). */
+function vibrateTap() {
+  try {
+    if (navigator.vibrate) navigator.vibrate(30);
+  } catch (e) { /* 진동이 없어도 앱은 그대로 */ }
+}
+
+function guardDoubleTap(event) {
+  const btn = event.target.closest('button');
+  if (!btn) return;
+  const now = Date.now();
+  const last = Number(btn.dataset.lastTap || 0);
+  if (now - last < 400) {
+    // 같은 버튼 연속 입력: 손떨림으로 보고 무시
+    event.stopPropagation();
+    event.preventDefault();
+    return;
+  }
+  btn.dataset.lastTap = String(now);
+  vibrateTap();
+}
+
+/* ===== [처음으로] 확인창: 실수로 눌러 연습을 잃지 않게 ===== */
+function openHomeConfirm() {
+  document.getElementById('confirm-home').classList.add('open');
+}
+
+function closeHomeConfirm() {
+  document.getElementById('confirm-home').classList.remove('open');
+}
+
 /* ===== 방해 요소: 광고·약관 (정답 판정과 무관, 눌러도 아무 일 없음) ===== */
 function startAds() {
   stopAds();
@@ -1392,8 +1466,19 @@ function initApp() {
 
   document.getElementById('btn-repeat').textContent = TEXT.repeatBtn;
   document.getElementById('btn-repeat').addEventListener('click', repeatGuide);
+  // [처음으로]는 바로 나가지 않고 큰 확인창을 먼저 띄운다
   document.getElementById('btn-home').textContent = TEXT.homeBtn;
-  document.getElementById('btn-home').addEventListener('click', goHome);
+  document.getElementById('btn-home').addEventListener('click', openHomeConfirm);
+  document.getElementById('confirm-question').textContent = TEXT.confirmHomeQ;
+  const confirmYes = document.getElementById('btn-confirm-yes');
+  confirmYes.textContent = TEXT.confirmYes;
+  confirmYes.addEventListener('click', () => { closeHomeConfirm(); goHome(); });
+  const confirmNo = document.getElementById('btn-confirm-no');
+  confirmNo.textContent = TEXT.confirmNo;
+  confirmNo.addEventListener('click', closeHomeConfirm);
+
+  // 오터치 방지: 캡처 단계에서 가장 먼저 검사한다
+  document.addEventListener('click', guardDoubleTap, true);
 
   document.getElementById('complete-title').textContent = TEXT.completeTitle;
   document.getElementById('chart-title').textContent = TEXT.chartTitle;
