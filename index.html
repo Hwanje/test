@@ -928,6 +928,13 @@ function pickKoreanVoice() {
   }
 }
 
+/* 읽어주기용 문안 다듬기: 생년월일처럼 다섯 자리 이상 이어진 숫자는
+   "사십팔만…"이 아니라 "사, 팔, 공…"처럼 한 자리씩 읽게 끊는다.
+   (대기번호 23번, 4,500원 같은 짧은 수는 그대로 읽는다) */
+function toSpokenText(text) {
+  return String(text).replace(/\d{5,}/g, m => m.split('').join(', '));
+}
+
 function speak(text) {
   if (soloMode || demoMode) return; // 혼자 해보기·체험: 음성 없음
   if (!soundOn || !isSpeechSupported()) return;
@@ -935,7 +942,7 @@ function speak(text) {
     if (!koreanVoice) pickKoreanVoice();
     if (!koreanVoice) return;   // 한국어 음성이 없으면 글만 보여준다
     window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
+    const utter = new SpeechSynthesisUtterance(toSpokenText(text));
     utter.voice = koreanVoice;
     utter.lang = 'ko-KR';
     utter.rate = 0.9;
